@@ -17,6 +17,12 @@ sub MessageType {
 	return $message_type{$_[0]};
 }
 
+sub MessageTypeToStr {
+	my($mt) = @_;
+	my %r = reverse %message_type;
+	return $r{$mt} // "N/A";
+}
+
 # my %v_const = (
 my %setreq = (
 	'TEMP' => 0,
@@ -56,15 +62,20 @@ my %setreq = (
 	'FLOW' => 34,
 	'VOLUME' => 35,
 	'LOCK_STATUS' => 36,
-	'V_DUST_LEVEL' => 37,
-	'V_VOLTAGE' => 38,
-	'V_CURRENT' => 39,
+	'DUST_LEVEL' => 37,
+	'VOLTAGE' => 38,
+	'CURRENT' => 39,
 );
 
 sub SetReq {
 	return $setreq{$_[0]};
 }
 
+sub SetReqToStr {
+	my($id) = @_;
+	my %r = reverse %setreq;
+	return $r{$id} // "N/A";
+}
 #my %i_const = (
 my %internal = (
 	'BATTERY_LEVEL' => 0,
@@ -86,6 +97,12 @@ my %internal = (
 
 sub Internal {
 	return $internal{$_[0]};
+}
+
+sub InternalToStr {
+	my($id) = @_;
+	my %r = reverse %internal;
+	return $r{$id} // "N/A";
 }
 
 #my %s_const = (
@@ -122,6 +139,12 @@ sub Presentation {
 	return $presentation{$_[0]};
 }
 
+sub PresentationToStr {
+	my($id) = @_;
+	my %r = reverse %presentation;
+	return $r{$id} // "N/A";
+}
+
 #my %st_const = (
 my %stream = (
 	'FIRMWARE_CONFIG_REQUEST' => 0,
@@ -134,6 +157,12 @@ my %stream = (
 
 sub Stream {
 	return $stream{$_[0]};
+}
+
+sub StreamToStr {
+	my($id) = @_;
+	my %r = reverse %stream;
+	return $r{$id} // "N/A";
 }
 
 # my %p_const = (
@@ -150,6 +179,13 @@ my %type = (
 sub Type {
 	return $type{$_[0]};
 }
+
+sub TypeToStr {
+	my($id) = @_;
+	my %r = reverse %type;
+	return $r{$id} // "N/A";
+}
+
 
 sub BroadcastAddress {
 	return 255;

@@ -23,6 +23,11 @@ sub new {
 	return $self;
 }
 
+sub setSocket {
+	my($self,$socket) = @_;
+	return $self->{socket} = $socket;
+}
+
 sub encode {
 	my($self,$destination,$sensor,$command,$acknowledge,$type,$payload) = @_;
 	if($command == MySensors::Const::MessageType('STREAM')) {
@@ -100,6 +105,19 @@ sub sendValue {
 				$value);
 }
 
+sub msg2str {
+	my($sender,$sensor,$command,$acknowledge,$type,$payload) = @_;
+	my $commandStr = MySensors::Const::MessageTypeToStr($command) . "($command)";
+	my $acknowledgeStr = ($acknowledge?'Ack':'NoAck') . "($acknowledge)";
+	my $typeStr = $type;
+	$typeStr = MySensors::Const::TypeToStr($type) . "($type)" if $command eq MySensors::Const::MessageType('PRESENTATION');
+	$typeStr = MySensors::Const::SetReqToStr($type) . "($type)" if $command eq MySensors::Const::MessageType('REQ') or 
+												                 $command eq MySensors::Const::MessageType('SET');
+	$typeStr = MySensors::Const::InternalToStr($type)  . "($type)" if $command eq MySensors::Const::MessageType('INTERNAL');
+	$payload = "" unless defined $payload;
+	return join(" ; ","Sender:$sender","Sensor:$sensor",$commandStr,$acknowledgeStr,$typeStr,$payload);
+}
+
 sub process {
 	my($self,$data) = @_;
 
@@ -110,7 +128,8 @@ sub process {
 	}
 	my($sender,$sensor,$command,$acknowledge,$type,$payload) = ($1,$2,$3,$4,$5,$6);
 
-	printf "Got: ($sender,$sensor,$command,$acknowledge,$type,$payload) @ %s\n", scalar localtime(time);
+	printf "Got: (%s) @ %s\n", msg2str($sender,$sensor,$command,$acknowledge,$type,$payload),
+								scalar localtime(time);
 
 	$self->{lastMsg} = time;
 
