@@ -13,10 +13,10 @@ sub new {
 	my($class) = shift;
 	my($opts) = shift // {};
 	my $self  = {
-		'timeout'		=> $opts->{'timeout'} // 30,
+		'timeout'		=> $opts->{'timeout'} // 300,
 		'host'    		=> $opts->{'host'},
 		'port'    		=> $opts->{'port'} // 5003,
-		'controller'	=> MySensors::Controller->new($opts->{'backend'}),
+		'controller'	=> MySensors::Controller->new({backend => $opts->{'backend'}, timeout => $opts->{'timeout'} // 300}),
 	};
 	bless ($self, $class);
 	return $self;
@@ -66,7 +66,10 @@ sub run {
 			# Send version request (~gateway ping).
 			$self->{'controller'}->versionCheck();
 			# Check if no message received in timeout s.
-			last unless $self->{'controller'}->timeoutCheck();
+			if(!$self->{'controller'}->timeoutCheck()) {
+				print "timeout.. existing..\n";
+				last;
+			}
 			next;
 		}
 

@@ -7,17 +7,16 @@ use warnings;
 use MySensors::Const;
 
 sub new {
-	my($class)   = shift;
-	my($backend) = shift;
-	my($socket)  = shift;
+	my($class) = shift;
+	my($opts)  = shift // {};
 
 	my $self  = {
-		'backend' => $backend,
-		'socket'  => $socket,
-		'debug'   => 0,
+		'backend' => $opts->{backend},
+		'socket'  => $opts->{socket},
+		'debug'   => 1,
 		'version' => undef,
 		'lastMsg' => time,
-		'timeout' => 30,
+		'timeout' => $opts->{timeout} // 30,
 	};
 	bless ($self, $class);
 	return $self;
@@ -50,7 +49,7 @@ sub send {
 							$type,
 							$payload) . "\n";
 
-	print "Sending: $td" if $self->{debug};
+	printf("Sending: %s\n",msg2str($destination,$sensor,$command,$acknowledge,$type,$payload)) if $self->{debug};
 	my $size = $self->{socket}->send($td);
 	if($size != length($td)) {
 		warn "wrote bad message...";
