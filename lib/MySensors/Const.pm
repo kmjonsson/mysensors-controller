@@ -85,7 +85,7 @@ my %internal = (
 );
 
 sub Internal {
-	return $setreq{$_[0]};
+	return $internal{$_[0]};
 }
 
 #my %s_const = (

@@ -20,11 +20,14 @@ use MySensors::Backend::TXT;
 # auto-flush on socket
 local $| = 1;
 
+my $timeout = 15; # half of timeout in controller...
+
 # create a connecting socket
 my $socket = IO::Socket::INET->new (
   PeerHost => '192.168.2.10',
   PeerPort => '5003',
   Proto => 'tcp',
+  Timeout => $timeout,
 );
 
 if(!defined $socket) {
@@ -40,7 +43,24 @@ my $controller = MySensors::Controller->new($backend,$socket) || croak "Can't in
 my $msg = "";
 while(1) {
 	my $response = "";
-	$socket->recv($response, 1024);
+
+    # Message timeout.
+	eval {
+		local $SIG{ALRM} = sub { }; # do nothing but interrupt the syscall.
+		alarm($timeout);
+		$socket->recv($response, 1024);
+		alarm(0);
+	};
+	alarm(0); # race cond.
+
+	# if no message received do version check.
+	if($response eq "") {
+        # Send version request (~gateway ping).
+		$controller->versionCheck();
+        # Check if no message received in timeout s.
+		last unless $controller->timeoutCheck();
+		next;
+	}
 
 	my @msgs;
 	if($response =~ /\n/x && $response =~ /\n$/x) {

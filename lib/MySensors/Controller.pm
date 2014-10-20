@@ -15,6 +15,9 @@ sub new {
 		'backend' => $backend,
 		'socket'  => $socket,
 		'debug'   => 0,
+		'version' => undef,
+		'lastMsg' => time,
+		'timeout' => 30,
 	};
 	bless ($self, $class);
 	return $self;
@@ -32,6 +35,8 @@ sub encode {
 # Send message
 sub send {
 	my($self,$destination,$sensor,$command,$acknowledge,$type,$payload) = @_;
+
+	$payload //= "";
 
 	my $td = $self->encode( $destination,
 							$sensor,
@@ -107,6 +112,8 @@ sub process {
 
 	printf "Got: ($sender,$sensor,$command,$acknowledge,$type,$payload) @ %s\n", scalar localtime(time);
 
+	$self->{lastMsg} = time;
+
 	if($command == MySensors::Const::MessageType('STREAM')) {
 		die "Not implemented yet";
 	}
@@ -125,7 +132,7 @@ sub process {
 		} elsif($type == MySensors::Const::Internal('TIME')) {
 			# $self->sendTime($sender, $sensor, $socket);
 		} elsif($type == MySensors::Const::Internal('VERSION')) {
-			# Do Nothing?
+			$self->gotVersion($sender, $payload);
 		} elsif($type == MySensors::Const::Internal('ID_REQUEST')) {
 			$self->sendNextAvailableSensorId();
 		} elsif($type == MySensors::Const::Internal('ID_RESPONSE')) {
@@ -154,6 +161,40 @@ sub process {
 	} elsif($command == MySensors::Const::MessageType('STREAM')) {
 		die "Not implemented yet";
 	}
+}
+
+sub gotVersion {
+	my($self,$sender,$version) = @_;
+	if($sender == 0) {
+		$self->{version} = $version;
+	}
+}
+
+sub getVersion {
+	my($self) = @_;
+	return $self->{version};
+}
+
+# 1 = OK
+# 0 = FAIL
+sub timeoutCheck {
+	my($self) = @_;
+    # if no message is received in timeout seconds (something is bad).
+	if($self->{lastMsg} > 0 && $self->{lastMsg} < time - $self->{timeout}) {
+		return 0;
+	}
+	return 1;
+}
+
+# Send version request
+sub versionCheck {
+	my($self) = @_;
+	return $self->send( 0,
+						0,
+						MySensors::Const::MessageType('INTERNAL'),
+						0,
+						MySensors::Const::Internal('VERSION')
+					);
 }
 
 1;
