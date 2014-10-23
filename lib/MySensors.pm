@@ -31,8 +31,8 @@ sub connect {
 		alarm($self->{'timeout'});
 		# create a connecting socket
 		$self->{'socket'} = IO::Socket::INET->new (
-		  PeerHost => '192.168.2.10',
-		  PeerPort => '5003',
+		  PeerHost => $self->{host},
+		  PeerPort => $self->{port},
 		  Proto => 'tcp',
 		  Timeout => $self->{'timeout'},
 		);
