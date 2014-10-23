@@ -16,7 +16,8 @@ sub new {
 		'timeout'		=> $opts->{'timeout'} // 300,
 		'host'    		=> $opts->{'host'},
 		'port'    		=> $opts->{'port'} // 5003,
-		'controller'	=> MySensors::Controller->new({backend => $opts->{'backend'}, timeout => $opts->{'timeout'} // 300}),
+		'debug'    		=> $opts->{'debug'} // 0,
+		'controller'	=> MySensors::Controller->new({backend => $opts->{'backend'}, timeout => $opts->{'timeout'} // 300, debug => $opts->{debug}}),
 	};
 	bless ($self, $class);
 	return $self;

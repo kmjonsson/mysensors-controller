@@ -13,10 +13,11 @@ sub new {
 	my $self  = {
 		'backend' => $opts->{backend},
 		'socket'  => $opts->{socket},
-		'debug'   => 1,
+		'debug'   => $opts->{debug} // 1,
+		'timeout' => $opts->{timeout} // 30,
+		'config'  => $opts->{config} // 'M',
 		'version' => undef,
 		'lastMsg' => time,
-		'timeout' => $opts->{timeout} // 30,
 	};
 	bless ($self, $class);
 	return $self;
@@ -27,29 +28,25 @@ sub setSocket {
 	return $self->{socket} = $socket;
 }
 
-sub encode {
-	my($self,$destination,$sensor,$command,$acknowledge,$type,$payload) = @_;
-	if($command == MySensors::Const::MessageType('STREAM')) {
-		die "Not implemented yet...";
-		# for my $p (split(//,$payload)) { $msg .= sprintf("%02X",ord($p)); }
-	}
-	return join(";",$destination,$sensor,$command,$acknowledge,$type,$payload);
-}
-
 # Send message
 sub send {
 	my($self,$destination,$sensor,$command,$acknowledge,$type,$payload) = @_;
 
+	# Not implemented (yet)
+	if($command == MySensors::Const::MessageType('STREAM')) {
+		die "Not implemented yet...";
+		# for my $p (split(//,$payload)) { $msg .= sprintf("%02X",ord($p)); }
+	}
+
 	$payload //= "";
 
-	my $td = $self->encode( $destination,
-							$sensor,
-							$command,
-							$acknowledge,
-							$type,
-							$payload) . "\n";
+	# encode message
+	my $td = join(";",$destination,$sensor,$command,
+	                  $acknowledge,$type,$payload);
 
 	printf("Sending: %s\n",msg2str($destination,$sensor,$command,$acknowledge,$type,$payload)) if $self->{debug};
+
+	# send message
 	my $size = $self->{socket}->send($td);
 	if($size != length($td)) {
 		warn "wrote bad message...";
@@ -60,12 +57,16 @@ sub send {
 
 sub saveProtocol {
 	my($self,$sender,$payload) = @_;
-	return $self->{backend}->saveProtocol($sender,$payload);
+	if($self->{backend}->can("saveProtocol")) {
+		return $self->{backend}->saveProtocol($sender,$payload);
+	}
 }
 
 sub saveSensor {
 	my($self,$sender,$sensor,$type) = @_;
-	return $self->{backend}->saveSensor($sender,$sensor,$type);
+	if($self->{backend}->can("saveSensor")) {
+		return $self->{backend}->saveSensor($sender,$sensor,$type);
+	}
 }
 
 
@@ -85,12 +86,39 @@ sub sendNextAvailableSensorId {
 }
 
 sub saveValue {
-	my ($self,$sender,$sensor,$type,$payload) = @_;
-	return $self->{backend}->saveValue($sender,$sensor,$type,$payload);
+	my ($self,$sender,$sensor,$type,$value) = @_;
+	if($self->{backend}->can("saveValue")) {
+		return $self->{backend}->saveValue($sender,$sensor,$type,$value);
+	}
+}
+
+sub saveBatteryLevel {
+	my($sender,$batteryLevel) = @_;
+	if($self->{backend}->can("saveBatteryLevel")) {
+		return $self->{backend}->saveBatteryLevel($sender,$batteryLevel);
+	}
+}
+
+sub saveSketchName {
+	my($sender,$sketchname) = @_;
+	if($self->{backend}->can("saveSketchName")) {
+		return $self->{backend}->saveSketchName($sender,$sketchname);
+	}
+}
+
+sub saveSketchVersion {
+	my($sender,$version) = @_;
+	if($self->{backend}->can("saveSketchVersion")) {
+		return $self->{backend}->saveSketchVersion($sender,$version);
+	}
 }
 
 sub sendValue {
 	my ($self,$sender,$sensor,$type) = @_;
+	if(!$self->{backend}->can("getValue")) {
+		warn "Backend can't getValue";
+		return;
+	}
 	my $value = $self->{backend}->getValue($sender,$sensor,$type);
 	if(!defined $value) {
 		warn "got no value.. :-(";
@@ -102,6 +130,26 @@ sub sendValue {
 				0,
 				$type,
 				$value);
+}
+
+sub sendTime {
+	my ($self,$sender,$sensor) = @_;
+	$self->send($sender,
+				$sensor,
+				MySensors::Const::MessageType('INTERNAL'),
+				0,
+				MySensors::Const::Internal('TIME'),
+				time);
+}
+
+sub sendConfig {
+	my ($self,$sender) = @_;
+	$self->send($sender,
+				MySensors::Const::NodeSensorId(),
+				MySensors::Const::MessageType('INTERNAL'),
+				0,
+				MySensors::Const::Internal('CONFIG'),
+				$self->{config});
 }
 
 sub msg2str {
@@ -125,10 +173,10 @@ sub process {
 		warn "Got no valid data: $data\n";
 		return;
 	}
-	my($sender,$sensor,$command,$acknowledge,$type,$payload) = ($1,$2,$3,$4,$5,$6);
+	my($sender,$sensor,$command,
+	   $acknowledge,$type,$payload) = ($1,$2,$3,$4,$5,$6);
 
-	printf "Got: (%s) @ %s\n", msg2str($sender,$sensor,$command,$acknowledge,$type,$payload),
-								scalar localtime(time);
+	printf "Got: (%s) @ %s\n", msg2str($sender,$sensor,$command,$acknowledge,$type,$payload), scalar localtime(time) if $self->{debug};
 
 	$self->{lastMsg} = time;
 
@@ -146,32 +194,34 @@ sub process {
 		$self->sendValue($sender,$sensor,$type);
 	} elsif($command == MySensors::Const::MessageType('INTERNAL')) {
 		if($type == MySensors::Const::Internal('BATTERY_LEVEL')) {
-			# $self->saveBatteryLevel($sender,$payload);
+			$self->saveBatteryLevel($sender,$payload);
 		} elsif($type == MySensors::Const::Internal('TIME')) {
-			# $self->sendTime($sender, $sensor, $socket);
+			$self->sendTime($sender, $sensor);
 		} elsif($type == MySensors::Const::Internal('VERSION')) {
 			$self->gotVersion($sender, $payload);
 		} elsif($type == MySensors::Const::Internal('ID_REQUEST')) {
 			$self->sendNextAvailableSensorId();
 		} elsif($type == MySensors::Const::Internal('ID_RESPONSE')) {
-			# Do Nothing
+			# Do Nothing (Response to ID_REQUEST)
 		} elsif($type == MySensors::Const::Internal('INCLUSION_MODE')) {
 			# Do Nothing
 		} elsif($type == MySensors::Const::Internal('CONFIG')) {
-			# $self->sendConfig($sender);
-		} elsif($type == MySensors::Const::Internal('PING')) {
+			$self->sendConfig($sender);
+		} elsif($type == MySensors::Const::Internal('FIND_PARENT')) {
 			# Do Nothing
-		} elsif($type == MySensors::Const::Internal('PING_ACK')) {
-			# Do Nothing
+		} elsif($type == MySensors::Const::Internal('FIND_PARENT_RESPONSE')) {
+			# Do Nothing (Response to FIND_PARENT)
 		} elsif($type == MySensors::Const::Internal('LOG_MESSAGE')) {
-			# Do Nothing
+			# Do logging..
 		} elsif($type == MySensors::Const::Internal('CHILDREN')) {
 			# Do Nothing
 		} elsif($type == MySensors::Const::Internal('SKETCH_NAME')) {
-			# saveSketchName($sender,$payload);
+			$self->saveSketchName($sender,$payload);
 		} elsif($type == MySensors::Const::Internal('SKETCH_VERSION')) {
-			# saveSketchVersion($sender,$payload);
+			$self->saveSketchVersion($sender,$payload);
 		} elsif($type == MySensors::Const::Internal('REBOOT')) {
+			# Do Nothing
+		} elsif($type == MySensors::Const::Internal('GATEWAY_READY')) {
 			# Do Nothing
 		} else {
 			warn "No match :-(";

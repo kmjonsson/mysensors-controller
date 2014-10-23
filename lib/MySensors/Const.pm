@@ -3,8 +3,6 @@ package MySensors::Const;
 use strict;
 use warnings;
 
-use Data::Dumper;
-
 my %message_type = (
 	'PRESENTATION' => 0,
 	'SET' => 1,
@@ -14,7 +12,9 @@ my %message_type = (
 );
 
 sub MessageType {
-	return $message_type{$_[0]};
+	my($id) = @_;
+	warn "MessageType: $id does not exist\n" unless defined $message_type{$id};
+	return $message_type{$id};
 }
 
 sub MessageTypeToStr {
@@ -23,7 +23,6 @@ sub MessageTypeToStr {
 	return $r{$mt} // "N/A";
 }
 
-# my %v_const = (
 my %setreq = (
 	'TEMP' => 0,
 	'HUM' => 1,
@@ -68,7 +67,9 @@ my %setreq = (
 );
 
 sub SetReq {
-	return $setreq{$_[0]};
+	my($id) = @_;
+	warn "SetReq: $id does not exist\n" unless defined $setreq{$id};
+	return $setreq{$id};
 }
 
 sub SetReqToStr {
@@ -76,7 +77,7 @@ sub SetReqToStr {
 	my %r = reverse %setreq;
 	return $r{$id} // "N/A";
 }
-#my %i_const = (
+
 my %internal = (
 	'BATTERY_LEVEL' => 0,
 	'TIME' => 1,
@@ -85,8 +86,8 @@ my %internal = (
 	'ID_RESPONSE' => 4,
 	'INCLUSION_MODE' => 5,
 	'CONFIG' => 6,
-	'PING' => 7,
-	'PING_ACK' => 8,
+	'FIND_PARENT' => 7,
+	'FIND_PARENT_RESPONSE' => 8,
 	'LOG_MESSAGE' => 9,
 	'CHILDREN' => 10,
 	'SKETCH_NAME' => 11,
@@ -96,7 +97,9 @@ my %internal = (
 );
 
 sub Internal {
-	return $internal{$_[0]};
+	my($id) = @_;
+	warn "Internal: $id does not exist\n" unless defined $internal{$id};
+	return $internal{$id}
 }
 
 sub InternalToStr {
@@ -105,7 +108,6 @@ sub InternalToStr {
 	return $r{$id} // "N/A";
 }
 
-#my %s_const = (
 my %presentation = (
 	'DOOR' => 0,
 	'MOTION' => 1,
@@ -136,7 +138,9 @@ my %presentation = (
 );
 
 sub Presentation {
-	return $presentation{$_[0]};
+	my($id) = @_;
+	warn "Presentation: $id does not exist\n" unless defined $presentation{$id};
+	return $presentation{$id};
 }
 
 sub PresentationToStr {
@@ -145,7 +149,6 @@ sub PresentationToStr {
 	return $r{$id} // "N/A";
 }
 
-#my %st_const = (
 my %stream = (
 	'FIRMWARE_CONFIG_REQUEST' => 0,
 	'FIRMWARE_CONFIG_RESPONSE' => 1,
@@ -156,7 +159,9 @@ my %stream = (
 );
 
 sub Stream {
-	return $stream{$_[0]};
+	my($id) = @_;
+	warn "Stream: $id does not exist\n" unless defined $stream{$id};
+	return $stream{$id};
 }
 
 sub StreamToStr {
@@ -165,7 +170,6 @@ sub StreamToStr {
 	return $r{$id} // "N/A";
 }
 
-# my %p_const = (
 my %type = (
 	'STRING' => 0,
 	'BYTE' => 1,
@@ -177,7 +181,9 @@ my %type = (
 );
 
 sub Type {
-	return $type{$_[0]};
+	my($id) = @_;
+	warn "Type: $id does not exist\n" unless defined $type{$id};
+	return $type{$id};
 }
 
 sub TypeToStr {
