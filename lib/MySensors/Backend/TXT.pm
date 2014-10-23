@@ -1,3 +1,6 @@
+#
+# Simple backend using flat files.
+#
 
 package MySensors::Backend::TXT;
 
@@ -8,8 +11,10 @@ sub new {
 	my($class) = shift;
 
 	my $self  = {
+		'log' => Log::Log4perl->get_logger(__PACKAGE__),
 	};
 	bless ($self, $class);
+	$self->{log}->debug("Backend initialized");
 	return $self;
 }
 
@@ -66,3 +71,4 @@ sub getValue {
 }
 
 1;
+
