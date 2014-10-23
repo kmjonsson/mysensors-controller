@@ -23,18 +23,23 @@ sub new {
 	return $self;
 }
 
-# TODO: Add real timeout...
 sub connect {
 	my($self) = @_;
 
-	# create a connecting socket
-	$self->{'socket'} = IO::Socket::INET->new (
-	  PeerHost => '192.168.2.10',
-	  PeerPort => '5003',
-	  Proto => 'tcp',
-	  Timeout => $self->{'timeout'}/2,
-	);
-
+	eval {
+		local $SIG{ALRM} = sub { }; # do nothing but interrupt the syscall.
+		alarm($self->{'timeout'});
+		# create a connecting socket
+		$self->{'socket'} = IO::Socket::INET->new (
+		  PeerHost => '192.168.2.10',
+		  PeerPort => '5003',
+		  Proto => 'tcp',
+		  Timeout => $self->{'timeout'},
+		);
+		alarm(0);
+	};
+	alarm(0); # race cond.
+	
 	if(!defined $self->{'socket'}) {
 		croak "cannot connect to the server $!\n";
 	}
@@ -56,7 +61,7 @@ sub run {
 		# Message timeout.
 		eval {
 			local $SIG{ALRM} = sub { }; # do nothing but interrupt the syscall.
-			alarm($self->{'timeout'}/2);
+			alarm($self->{'timeout'}/2); # Only half the timeout
 			$self->{'socket'}->recv($response, 1024);
 			alarm(0);
 		};
