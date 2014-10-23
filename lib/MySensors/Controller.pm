@@ -93,21 +93,21 @@ sub saveValue {
 }
 
 sub saveBatteryLevel {
-	my($sender,$batteryLevel) = @_;
+	my($self,$sender,$batteryLevel) = @_;
 	if($self->{backend}->can("saveBatteryLevel")) {
 		return $self->{backend}->saveBatteryLevel($sender,$batteryLevel);
 	}
 }
 
 sub saveSketchName {
-	my($sender,$sketchname) = @_;
+	my($self,$sender,$sketchname) = @_;
 	if($self->{backend}->can("saveSketchName")) {
 		return $self->{backend}->saveSketchName($sender,$sketchname);
 	}
 }
 
 sub saveSketchVersion {
-	my($sender,$version) = @_;
+	my($self,$sender,$version) = @_;
 	if($self->{backend}->can("saveSketchVersion")) {
 		return $self->{backend}->saveSketchVersion($sender,$version);
 	}
@@ -258,11 +258,11 @@ sub timeoutCheck {
 sub versionCheck {
 	my($self) = @_;
 	return $self->send( 0,
-						0,
-						MySensors::Const::MessageType('INTERNAL'),
-						0,
-						MySensors::Const::Internal('VERSION')
-					);
+				0,
+				MySensors::Const::MessageType('INTERNAL'),
+				0,
+				MySensors::Const::Internal('VERSION')
+			);
 }
 
 1;
