@@ -19,22 +19,22 @@ sub new {
 }
 
 sub saveProtocol {
-	my($self,$sender,$payload) = @_;
+	my($self,$nodeid,$protocol) = @_;
 	local *OUT;
-	open(OUT,">id/${sender}.version") || die;
-	print OUT $payload;
+	open(OUT,">id/${nodeid}.version") || die;
+	print OUT $protocol;
 	close(OUT);
 }
 
 sub saveSensor {
-	my($self,$sender,$sensor,$type) = @_;
+	my($self,$nodeid,$sensor,$type) = @_;
 	local *OUT;
-	open(OUT,">id/${sender}.${sensor}.type") || die;
+	open(OUT,">id/${nodeid}.${sensor}.type") || die;
 	print OUT $type;
 	close(OUT);
 }
 
-sub getNextAvailableSensorId {
+sub getNextAvailableNodeId {
 	my($self) = @_;
 	for my $id (1..254) {
 		next if(-f "id/$id");
@@ -47,21 +47,21 @@ sub getNextAvailableSensorId {
 }
 
 sub saveValue {
-	my ($self,$sender,$sensor,$type,$payload) = @_;
-	$payload =~ s,[\r\n],<NL>,g;
+	my ($self,$nodeid,$sensor,$type,$value) = @_;
+	$value =~ s,[\r\n],<NL>,g;
 	local *OUT;
-	open(OUT,">>id/${sender}.${sensor}.${type}.set") || die;
-	printf OUT "%d;%s\n",time,$payload;
+	open(OUT,">>id/${nodeid}.${sensor}.${type}.set") || die;
+	printf OUT "%d;%s\n",time,$value;
 	close(OUT);
-	open(OUT,">id/${sender}.${sensor}.${type}.latest") || die;
-	printf OUT "%d;%s\n",time,$payload;
+	open(OUT,">id/${nodeid}.${sensor}.${type}.latest") || die;
+	printf OUT "%d;%s\n",time,$value;
 	close(OUT);
 }
 
 sub getValue {
-	my ($self,$sender,$sensor,$type) = @_;
+	my ($self,$nodeid,$sensor,$type) = @_;
 	local *IN;
-	open(IN,"<id/${sender}.${sensor}.${type}.latest") || die;
+	open(IN,"<id/${nodeid}.${sensor}.${type}.latest") || die;
 	my($data) = <IN>;
 	close(IN);
 	if($data =~ /^(\d+);(.*)$/) {
