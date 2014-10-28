@@ -7,14 +7,18 @@ package MySensors::Backend::Pg;
 use strict;
 use warnings;
 
+use Data::Dumper;
+
 sub new {
-	my($class,$opts) = shift;
+	my($class,$opts) = @_;
 
 	my $self  = {
+		'dsn' => $opts->{'dsn'} // "",
+		'user' => $opts->{'user'} // "",
 		'log' => Log::Log4perl->get_logger(__PACKAGE__),
 	};
 	bless ($self, $class);
-	$self->{dbh} = DBI->connect($self->{dsn}, $self->{user}, $self->{password}, 
+	$self->{dbh} = DBI->connect($self->{dsn}, $self->{user}, $opts->{password} // "", 
 			{ RaiseError => 1, 'pg_enable_utf8' => 1 });
 	$self->{dbh}->do("SET CLIENT_ENCODING='UTF8';");
 	$self->{log}->debug("Backend initialized");
@@ -38,7 +42,9 @@ sub _query {
 
 sub _call {
 	my($self,$func,@args) = @_;
-	my $result = $self->_query("select $func",@args);
+	my $sql = "select $func(" . join(",",map { "?" } 1 .. (scalar @args)) . ")";
+	#printf("%s(%s)\n",$sql,join(" , ",@args));
+	my $result = $self->_query($sql,@args);
 	return unless defined $result;
 	return @{$result->[0]};
 }
