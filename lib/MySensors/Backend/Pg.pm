@@ -29,7 +29,7 @@ sub _query {
         my($self,$sql,@args) = @_;
         my $sth = $self->{dbh}->prepare($sql);
         if($sth->execute(@args)) {
-		return;
+			return;
         }
         my @result;
         while(1) {

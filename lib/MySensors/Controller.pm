@@ -228,8 +228,9 @@ sub process {
 	if($command == MySensors::Const::MessageType('PRESENTATION')) {
 		if($sensor == MySensors::Const::NodeSensorId()) {
 			$self->saveProtocol($nodeid,$payload);
+		} else {
+			$self->saveSensor($nodeid,$sensor,$type);
 		}
-		$self->saveSensor($nodeid,$sensor,$type);
 	} elsif($command == MySensors::Const::MessageType('SET')) {
 		$self->saveValue($nodeid,$sensor,$type,$payload);
 	} elsif($command == MySensors::Const::MessageType('REQ')) {

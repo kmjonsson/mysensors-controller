@@ -20,6 +20,7 @@ CREATE TABLE sensors (
 	node		int NOT NULL REFERENCES nodes,
 	sensor		int NOT NULL CHECK (id >= 0 AND id < 256),
 	type		int NOT NULL CHECK (type >= 0),
+	ttl		interval  NOT NULL DEFAULT '1day'::interval,
 	first		timestamp NOT NULL DEFAULT now(),
 	last		timestamp NOT NULL DEFAULT now(),
 	CHECK		(first <= last)
@@ -53,7 +54,7 @@ BEGIN
 	IF NOT FOUND THEN
 		return false;
 	END IF;
-	SELECT id,type INTO var_sensor FROM sensors 
+	SELECT id,type,ttl INTO var_sensor FROM sensors 
 		WHERE node = var_node.id AND sensor = in_sensor
 		ORDER BY last DESC,first DESC LIMIT 1;
 	UPDATE nodes SET last = now() WHERE id = var_node.id;
@@ -66,8 +67,8 @@ BEGIN
 		END IF;
 	END IF;
 	-- Add new
-	INSERT INTO sensors (node,sensor,type) 
-		VALUES (var_node.id,in_sensor,in_type);
+	INSERT INTO sensors (node,sensor,type,ttl) 
+		VALUES (var_node.id,in_sensor,in_type.var_sensor.ttl);
 	RETURN true;
 END;
 $save_sensor$
@@ -110,7 +111,7 @@ BEGIN
 		return false;
 	END IF;
 	-- Fetch sensor
-	SELECT id INTO var_sensor FROM sensors 
+	SELECT id,ttl INTO var_sensor FROM sensors 
 		WHERE node = var_node.id AND sensor = in_sensor 
 		ORDER BY last DESC,first DESC LIMIT 1;
 	IF NOT FOUND THEN
@@ -121,29 +122,27 @@ BEGIN
 	UPDATE nodes   SET last = now() WHERE id = var_node.id;
 	-- Fetch Value
 	SELECT id,type,last,value INTO var_value FROM values 
-		WHERE sensor = var_sensor.id 
+		WHERE sensor = var_sensor.id AND type = in_type
 		ORDER BY last DESC ,first DESC LIMIT 1;
 	-- Add new if not found
 	IF FOUND THEN
 		-- IF value older then 1h (change to something good)
-		-- IF changed type
-		IF now() - var_value.last > '1h'::interval 
-			OR var_value.type <> in_type THEN
-				-- Add new value without updateing last
-				INSERT INTO values (sensor,type,value) 
-					VALUES (var_sensor.id,in_type,in_value);
+		IF now() - var_value.last > var_sensor.ttl THEN
+			-- Add new value without updateing last
+			INSERT INTO values (sensor,type,value) 
+				VALUES (var_sensor.id,in_type,in_value);
 			RETURN true;
 		END IF;
 
 		UPDATE values  SET last = now() WHERE id = var_value.id;
-
 		-- If value changed
 		IF var_value.value <> in_value THEN
 			INSERT INTO values (sensor,type,value) 
 				VALUES (var_sensor.id,in_type,in_value);
 		END IF;
 	ELSE
-		INSERT INTO values (sensor,type,value) VALUES (var_sensor.id,in_type,in_value);
+		INSERT INTO values (sensor,type,value) 
+			VALUES (var_sensor.id,in_type,in_value);
 	END IF;
 	RETURN true;
 END;
@@ -165,7 +164,7 @@ BEGIN
 	SELECT * INTO var_node FROM nodes WHERE node = in_node 
 		ORDER BY last DESC,first DESC LIMIT 1;
 	IF NOT FOUND THEN
-		return false;
+		return NULL;
 	END IF;
 	-- Fetch sensor
 	SELECT * INTO var_sensor FROM sensors 
@@ -176,7 +175,12 @@ BEGIN
 	END IF;
 	-- Fetch value
 	SELECT * INTO var_value FROM values 
-		WHERE sensor = var_sensor.id AND type = in_type 
+		WHERE 
+				sensor = var_sensor.id 
+			AND 
+				type = in_type 
+			AND
+				now() - last < var_sensor.ttl
 		ORDER BY last DESC,first DESC LIMIT 1;
 	IF NOT FOUND THEN
 		return NULL;
@@ -186,7 +190,24 @@ END;
 $get_value$
 LANGUAGE plpgsql;
 
--- CREATE OR REPLACE FUNCTION save_batterylevel ( 
+CREATE OR REPLACE FUNCTION save_batterylevel ( 
+		in_node		int,
+		in_level	int
+	)
+RETURNS boolean AS $save_batterylevel$
+DECLARE 
+        var_value      TEXT;
+	var_res        BOOLEAN;
+BEGIN   
+	SELECT get_value(in_node,255,17) INTO var_value;
+	IF var_value IS NULL THEN
+		PERFORM save_sensor(in_node,255,17);
+	END IF;
+	SELECT save_value(in_node,255,38,in_level::text) INTO var_res;
+	RETURN var_res;
+END;
+$save_batterylevel$
+LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION save_protocol ( 
 		in_node		int,
