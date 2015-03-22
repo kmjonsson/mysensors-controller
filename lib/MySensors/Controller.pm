@@ -72,7 +72,7 @@ sub sendNextAvailableNodeId {
 			MySensors::Const::NodeSensorId(),
 			MySensors::Const::MessageType('INTERNAL'),
 			0,
-			MySensors::Const::Internal{'ID_RESPONSE'},
+			MySensors::Const::Internal('ID_RESPONSE'),
 			$id);
 }
 
