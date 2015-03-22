@@ -15,32 +15,32 @@ sub new {
 	};
 	bless ($self, $class);
 	$self->{log}->debug("Backend initialized");
+	mkdir "id" unless (-d "id");
 	return $self;
 }
 
 sub saveProtocol {
 	my($self,$nodeid,$protocol) = @_;
-	local *OUT;
-	open(OUT,">id/${nodeid}.version") || die;
-	print OUT $protocol;
-	close(OUT);
+	open(my $fh,">","id/${nodeid}.version") || die;
+	print $fh $protocol;
+	close($fh);
+	return;
 }
 
 sub saveSensor {
 	my($self,$nodeid,$sensor,$type) = @_;
-	local *OUT;
-	open(OUT,">id/${nodeid}.${sensor}.type") || die;
-	print OUT $type;
-	close(OUT);
+	open(my $fh,">","id/${nodeid}.${sensor}.type") || die;
+	print $fh $type;
+	close($fh);
+	return;
 }
 
 sub getNextAvailableNodeId {
 	my($self) = @_;
 	for my $id (1..254) {
 		next if(-f "id/$id");
-		local *OUT;
-		open(OUT,">id/$id") || die;
-		close(OUT) || die;
+		open(my $fh,">","id/$id") || die;
+		close($fh) || die;
 		return $id;
 	}
 	return;
@@ -49,24 +49,58 @@ sub getNextAvailableNodeId {
 sub saveValue {
 	my ($self,$nodeid,$sensor,$type,$value) = @_;
 	$value =~ s,[\r\n],<NL>,g;
-	local *OUT;
-	open(OUT,">>id/${nodeid}.${sensor}.${type}.set") || die;
-	printf OUT "%d;%s\n",time,$value;
-	close(OUT);
-	open(OUT,">id/${nodeid}.${sensor}.${type}.latest") || die;
-	printf OUT "%d;%s\n",time,$value;
-	close(OUT);
+	open(my $fh,">>","id/${nodeid}.${sensor}.${type}.set") || die;
+	printf $fh "%d;%s\n",time,$value;
+	close($fh);
+	open($fh,">","id/${nodeid}.${sensor}.${type}.latest") || die;
+	printf $fh "%d;%s\n",time,$value;
+	close($fh);
+	return;
 }
 
 sub getValue {
 	my ($self,$nodeid,$sensor,$type) = @_;
-	local *IN;
-	open(IN,"<id/${nodeid}.${sensor}.${type}.latest") || die;
-	my($data) = <IN>;
-	close(IN);
+	open(my $fh,"<","id/${nodeid}.${sensor}.${type}.latest") || die;
+	my($data) = <$fh>;
+	close($fh);
 	if($data =~ /^(\d+);(.*)$/) {
-		return $3;
+		return $2;
 	}
+	return;
+}
+
+
+sub saveSketchName {
+	my($self,$nodeid,$name) = @_;
+	open(my $fh,">","id/${nodeid}.sketchname") || die;
+	print $fh $name;
+	close($fh);
+	return;
+}
+
+sub saveSketchVersion {
+	my ($self,$nodeid,$version) = @_;
+	open(my $fh,">","id/${nodeid}.sketchversion") || die;
+	print $fh $version;
+	close($fh);
+	return;
+}
+sub saveBatteryLevel {
+	my ($self,$nodeid,$level) = @_;
+	$level =~ s,[\r\n],<NL>,g;
+	open(my $fh,">>","id/${nodeid}.batterylevel") || die;
+	printf $fh "%d;%s\n",time,$level;
+	close($fh);
+	open($fh,">","id/${nodeid}.batterylevel.latest") || die;
+	printf $fh "%d;%s\n",time,$level;
+	close($fh);
+	return;
+}
+sub saveVersion {
+	my ($self,$nodeid,$version) = @_;
+	open(my $fh,">","id/${nodeid}.fooversion") || die;
+	print $fh $version;
+	close($fh);
 	return;
 }
 
