@@ -9,8 +9,6 @@ use warnings;
 
 use DBI;
 
-use Data::Dumper;
-
 sub new {
 	my($class,$opts) = @_;
 
@@ -46,12 +44,9 @@ sub _query {
 sub _call {
 	my($self,$func,@args) = @_;
 	my $sql = "select $func";
-	#printf("%s <- (%s)\n",$sql,join(" , ",@args));
 	my $result = $self->_query($sql,@args);
 	return unless defined $result;
 	return unless defined $result->[0];
-	#print "Result: " . Dumper($result) . "\n";
-	#print "Result: " . Dumper(@{$result->[0]}) . "\n";
 	return @{$result->[0]};
 }
 
