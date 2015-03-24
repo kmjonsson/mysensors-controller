@@ -21,7 +21,7 @@ sub new {
 	$self->{dbh} = DBI->connect($self->{dsn}, $self->{user}, $opts->{password} // "", 
 			{ RaiseError => 1, 'pg_enable_utf8' => 1 });
 	$self->{dbh}->do("SET CLIENT_ENCODING='UTF8';");
-	$self->{log}->debug("Backend initialized");
+	$self->{log}->debug("Pg Backend initialized");
 	return $self;
 }
 

@@ -24,16 +24,19 @@ sub register {
 	$self->{controller} = $controller;
 	$controller->register('saveValue',$self);
 	$controller->register('saveVersion',$self);
+	return;
 }
 
 sub saveVersion{
 	my($self,$nodeid,$version) = @_;
 	$self->{log}->debug("$nodeid,$version");
+	return;
 }
 
 sub saveValue {
 	my($self,$nodeid,$sensor,$type,$value) = @_;
 	$self->{log}->debug("$nodeid,$sensor,$type,$value");
+	return;
 }
 
 1;

@@ -11,10 +11,12 @@ use lib 'lib';
 
 use MySensors;
 use MySensors::Backend::TXT;
-use MySensors::Plugins::Example;
+#use MySensors::Plugins::Example;
+use MySensors::Plugins::Mattith;
 
 my $host = shift @ARGV // '192.168.2.10';
 my $datadir = shift @ARGV;
+my $mattithhost = shift @ARGV // '192.168.0.1:2324';
 
 # Init logger
 Log::Log4perl->init("log.conf");
@@ -25,7 +27,9 @@ my $backend = MySensors::Backend::TXT->new({
 				datadir=>$datadir,
 			}) || croak "Can't init Backend";
 my @plugins = (
-                    MySensors::Plugins::Example->new({}),
+                    MySensors::Plugins::Mattith->new({
+						host => $mattithhost,
+					}),
 			);
 
 my $mysensors = MySensors->new({ host => $host,

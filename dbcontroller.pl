@@ -15,6 +15,7 @@ use MySensors;
 use MySensors::Backend::Pg;
 use MySensors::Plugins::Example;
 
+my $host = shift @ARGV // '192.168.2.10';
 # Init logger
 Log::Log4perl->init("log.conf");
 
@@ -29,7 +30,7 @@ my @plugins = (
                     MySensors::Plugins::Example->new({}),
 			);
 
-my $mysensors = MySensors->new({ host => '192.168.2.10',
+my $mysensors = MySensors->new({ host => $host,
                                  backend => $backend,
                                  plugins => \@plugins,
 				 debug => 1,

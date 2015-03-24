@@ -9,19 +9,22 @@ use warnings;
 
 sub new {
 	my($class) = shift;
+	my($opts) = shift // {};
 
 	my $self  = {
+		'datadir' => $opts->{'datadir'} // "id",
 		'log' => Log::Log4perl->get_logger(__PACKAGE__),
 	};
+	$self->{datadir} .= "/" unless $self->{datadir} =~ m{/$};
 	bless ($self, $class);
-	$self->{log}->debug("Backend initialized");
-	mkdir "id" unless (-d "id");
+	$self->{log}->debug("TXT Backend initialized, storing data in ".$self->{datadir});
+	mkdir $self->{datadir} unless (-d $self->{datadir});
 	return $self;
 }
 
 sub saveProtocol {
 	my($self,$nodeid,$protocol) = @_;
-	open(my $fh,">","id/${nodeid}.version") || die;
+	open(my $fh,">",$self->{datadir}."${nodeid}.version") || die;
 	print $fh $protocol;
 	close($fh);
 	return;
@@ -29,7 +32,7 @@ sub saveProtocol {
 
 sub saveSensor {
 	my($self,$nodeid,$sensor,$type) = @_;
-	open(my $fh,">","id/${nodeid}.${sensor}.type") || die;
+	open(my $fh,">",$self->{datadir}."${nodeid}.${sensor}.type") || die;
 	print $fh $type;
 	close($fh);
 	return;
@@ -38,8 +41,8 @@ sub saveSensor {
 sub getNextAvailableNodeId {
 	my($self) = @_;
 	for my $id (1..254) {
-		next if(-f "id/$id");
-		open(my $fh,">","id/$id") || die;
+		next if(-f $self->{datadir}."$id");
+		open(my $fh,">",$self->{datadir}."$id") || die;
 		close($fh) || die;
 		return $id;
 	}
@@ -49,10 +52,10 @@ sub getNextAvailableNodeId {
 sub saveValue {
 	my ($self,$nodeid,$sensor,$type,$value) = @_;
 	$value =~ s,[\r\n],<NL>,g;
-	open(my $fh,">>","id/${nodeid}.${sensor}.${type}.set") || die;
+	open(my $fh,">>",$self->{datadir}."${nodeid}.${sensor}.${type}.set") || die;
 	printf $fh "%d;%s\n",time,$value;
 	close($fh);
-	open($fh,">","id/${nodeid}.${sensor}.${type}.latest") || die;
+	open($fh,">",$self->{datadir}."${nodeid}.${sensor}.${type}.latest") || die;
 	printf $fh "%d;%s\n",time,$value;
 	close($fh);
 	return;
@@ -60,7 +63,7 @@ sub saveValue {
 
 sub getValue {
 	my ($self,$nodeid,$sensor,$type) = @_;
-	open(my $fh,"<","id/${nodeid}.${sensor}.${type}.latest") || die;
+	open(my $fh,"<",$self->{datadir}."${nodeid}.${sensor}.${type}.latest") || die;
 	my($data) = <$fh>;
 	close($fh);
 	if($data =~ /^(\d+);(.*)$/) {
@@ -72,7 +75,7 @@ sub getValue {
 
 sub saveSketchName {
 	my($self,$nodeid,$name) = @_;
-	open(my $fh,">","id/${nodeid}.sketchname") || die;
+	open(my $fh,">",$self->{datadir}."${nodeid}.sketchname") || die;
 	print $fh $name;
 	close($fh);
 	return;
@@ -80,7 +83,7 @@ sub saveSketchName {
 
 sub saveSketchVersion {
 	my ($self,$nodeid,$version) = @_;
-	open(my $fh,">","id/${nodeid}.sketchversion") || die;
+	open(my $fh,">",$self->{datadir}."${nodeid}.sketchversion") || die;
 	print $fh $version;
 	close($fh);
 	return;
@@ -88,17 +91,17 @@ sub saveSketchVersion {
 sub saveBatteryLevel {
 	my ($self,$nodeid,$level) = @_;
 	$level =~ s,[\r\n],<NL>,g;
-	open(my $fh,">>","id/${nodeid}.batterylevel") || die;
+	open(my $fh,">>",$self->{datadir}."${nodeid}.batterylevel") || die;
 	printf $fh "%d;%s\n",time,$level;
 	close($fh);
-	open($fh,">","id/${nodeid}.batterylevel.latest") || die;
+	open($fh,">",$self->{datadir}."${nodeid}.batterylevel.latest") || die;
 	printf $fh "%d;%s\n",time,$level;
 	close($fh);
 	return;
 }
 sub saveVersion {
 	my ($self,$nodeid,$version) = @_;
-	open(my $fh,">","id/${nodeid}.fooversion") || die;
+	open(my $fh,">",$self->{datadir}."${nodeid}.fooversion") || die;
 	print $fh $version;
 	close($fh);
 	return;
