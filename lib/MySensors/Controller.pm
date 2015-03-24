@@ -83,10 +83,10 @@ sub sendValue {
 		$self->{log}->error("Backend does not support 'getValue");
 		return;
 	}
-	my $value = $self->{backend}->getValue($nodeid,$sensor,$type);
+	my($value) = $self->{backend}->getValue($nodeid,$sensor,$type);
 	if(!defined $value) {
-		$self->{log}->error("Got no value from backend");
-		return;
+		$self->{log}->debug("Got no value from backend :-( sending empty string");
+		$value = "";
 	}
 	$self->send($nodeid,
 			$sensor,
@@ -198,7 +198,7 @@ sub msg2str {
 	my $commandStr = MySensors::Const::MessageTypeToStr($command) . "($command)";
 	my $acknowledgeStr = ($acknowledge?'Ack':'NoAck') . "($acknowledge)";
 	my $typeStr = $type;
-	$typeStr = MySensors::Const::TypeToStr($type) . "($type)" if $command eq MySensors::Const::MessageType('PRESENTATION');
+	$typeStr = MySensors::Const::PresentationToStr($type) . "($type)" if $command eq MySensors::Const::MessageType('PRESENTATION');
 	$typeStr = MySensors::Const::SetReqToStr($type) . "($type)" if $command eq MySensors::Const::MessageType('REQ') or 
 												                 $command eq MySensors::Const::MessageType('SET');
 	$typeStr = MySensors::Const::InternalToStr($type)  . "($type)" if $command eq MySensors::Const::MessageType('INTERNAL');
