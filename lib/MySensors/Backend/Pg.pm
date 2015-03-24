@@ -7,6 +7,8 @@ package MySensors::Backend::Pg;
 use strict;
 use warnings;
 
+use DBI;
+
 use Data::Dumper;
 
 sub new {
