@@ -17,8 +17,9 @@ sub new {
 		'host'    		=> $opts->{'host'},
 		'port'    		=> $opts->{'port'} // 5003,
 		'debug'    		=> $opts->{'debug'} // 0,
-		'controller'	=> MySensors::Controller->new({backend => $opts->{'backend'}, timeout => $opts->{'timeout'} // 300, debug => $opts->{debug}}),
-		'log' => Log::Log4perl->get_logger(__PACKAGE__),
+		'plugins'		=> $opts->{'plugins'},
+		'controller'	=> MySensors::Controller->new({backend => $opts->{'backend'}, timeout => $opts->{'timeout'} // 300, debug => $opts->{debug}, plugins => $opts->{plugins}}),
+		'log' 			=> Log::Log4perl->get_logger(__PACKAGE__),
 	};
 	bless ($self, $class);
 	return $self;

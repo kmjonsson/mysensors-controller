@@ -12,17 +12,40 @@ sub new {
 
 	my $self  = {
 		'backend' => $opts->{backend},
+		'plugins' => $opts->{plugins},
 		'socket'  => $opts->{socket},
 		'debug'   => $opts->{debug} // 1,
 		'timeout' => $opts->{timeout} // 30,
 		'config'  => $opts->{config} // 'M',
+		'callbacks' => {},
 		'version' => undef,
 		'lastMsg' => time,
 		'log'     => Log::Log4perl->get_logger(__PACKAGE__),
 	};
 	bless ($self, $class);
+	if(defined $self->{'plugins'}) {
+		foreach my $p (@{$self->{plugins}}) {
+			$p->register($self);
+		}
+	}
 	$self->{log}->debug("Controller initialized");
 	return $self;
+}
+
+sub register {
+	my($self,$method,$object) = @_;
+	$self->{callbacks}->{$method} //= [];
+	push @{$self->{callbacks}->{$method}},$object;
+	return $self;
+}
+
+sub call_back {
+	my($self,$method,@arg) = @_;
+	$self->{log}->debug("call_back($method," . join(",",@arg) . ")");
+	return unless defined $self->{callbacks}->{$method};
+	foreach my $o (@{$self->{callbacks}->{$method}}) {
+		$o->$method(@arg);
+	}
 }
 
 sub setSocket {
@@ -83,10 +106,10 @@ sub sendValue {
 		$self->{log}->error("Backend does not support 'getValue");
 		return;
 	}
-	my $value = $self->{backend}->getValue($nodeid,$sensor,$type);
+	my($value) = $self->{backend}->getValue($nodeid,$sensor,$type);
 	if(!defined $value) {
-		$self->{log}->error("Got no value from backend");
-		return;
+		$self->{log}->debug("Got no value from backend :-( sending empty string");
+		$value = "";
 	}
 	$self->send($nodeid,
 			$sensor,
@@ -94,17 +117,20 @@ sub sendValue {
 			0,
 			$type,
 			$value);
+	$self->call_back('sendValue', $nodeid, $sensor, $type, $value);
 }
 
 sub sendTime {
 	my ($self,$nodeid,$sensor) = @_;
 	$self->{log}->debug("NodeID: $nodeid sensor: $sensor");
+	my $t = time;
 	$self->send($nodeid,
 			$sensor,
 			MySensors::Const::MessageType('INTERNAL'),
 			0,
 			MySensors::Const::Internal('TIME'),
-			time);
+			$t);
+	$self->call_back('sendTime', $nodeid, $t);
 }
 
 sub sendConfig {
@@ -116,6 +142,7 @@ sub sendConfig {
 			0,
 			MySensors::Const::Internal('CONFIG'),
 			$self->{config});
+	$self->call_back('sendConfig', $dest, $self->{config});
 }
 
 sub sendVersionCheck {
@@ -135,6 +162,7 @@ sub sendVersionCheck {
 sub saveProtocol {
 	my($self,$nodeid,$protocol) = @_;
 	$self->{log}->debug("NodeID: $nodeid protocol: $protocol");
+	$self->call_back('saveProtocol', $nodeid, $protocol);
 	if($self->{backend}->can("saveProtocol")) {
 		return $self->{backend}->saveProtocol($nodeid,$protocol);
 	}
@@ -143,6 +171,7 @@ sub saveProtocol {
 sub saveSensor {
 	my($self,$nodeid,$sensor,$type) = @_;
 	$self->{log}->debug("NodeID: $nodeid sensor: $sensor type: $type");
+	$self->call_back('saveSensor', $nodeid, $sensor, $type);
 	if($self->{backend}->can("saveSensor")) {
 		return $self->{backend}->saveSensor($nodeid,$sensor,$type);
 	}
@@ -151,14 +180,17 @@ sub saveSensor {
 sub saveValue {
 	my ($self,$nodeid,$sensor,$type,$value) = @_;
 	$self->{log}->debug("NodeID: $nodeid sensor: $sensor type: $type value: $value");
+	$self->call_back('saveValue', $nodeid, $sensor, $type, $value);
 	if($self->{backend}->can("saveValue")) {
 		return $self->{backend}->saveValue($nodeid,$sensor,$type,$value);
 	}
+
 }
 
 sub saveBatteryLevel {
 	my($self,$nodeid,$batteryLevel) = @_;
 	$self->{log}->debug("NodeID: $nodeid batteryLevel $batteryLevel");
+	$self->call_back('saveBatteryLevel', $nodeid, $batteryLevel);
 	if($self->{backend}->can("saveBatteryLevel")) {
 		return $self->{backend}->saveBatteryLevel($nodeid,$batteryLevel);
 	}
@@ -167,6 +199,7 @@ sub saveBatteryLevel {
 sub saveSketchName {
 	my($self,$nodeid,$name) = @_;
 	$self->{log}->debug("NodeID: $nodeid name: $name");
+	$self->call_back('saveSketchName', $nodeid, $name);
 	if($self->{backend}->can("saveSketchName")) {
 		return $self->{backend}->saveSketchName($nodeid,$name);
 	}
@@ -175,6 +208,7 @@ sub saveSketchName {
 sub saveSketchVersion {
 	my($self,$nodeid,$version) = @_;
 	$self->{log}->debug("NodeID: $nodeid version: $version");
+	$self->call_back('saveSketchVersion', $nodeid, $version);
 	if($self->{backend}->can("saveSketchVersion")) {
 		return $self->{backend}->saveSketchVersion($nodeid,$version);
 	}
@@ -182,9 +216,10 @@ sub saveSketchVersion {
 
 sub saveVersion {
 	my($self,$nodeid,$version) = @_;
-	$self->{log}->debug("Got version: $version");
+	$self->{log}->debug("Got version: Node=$nodeid Version=$version");
 	if($nodeid == 0) {
 		$self->{version} = $version;
+		$self->call_back('saveVersion', $nodeid, $version);
 		if($self->{backend}->can("saveVersion")) {
 			return $self->{backend}->saveVersion($nodeid,$version);
 		}
@@ -198,7 +233,7 @@ sub msg2str {
 	my $commandStr = MySensors::Const::MessageTypeToStr($command) . "($command)";
 	my $acknowledgeStr = ($acknowledge?'Ack':'NoAck') . "($acknowledge)";
 	my $typeStr = $type;
-	$typeStr = MySensors::Const::TypeToStr($type) . "($type)" if $command eq MySensors::Const::MessageType('PRESENTATION');
+	$typeStr = MySensors::Const::PresentationToStr($type) . "($type)" if $command eq MySensors::Const::MessageType('PRESENTATION');
 	$typeStr = MySensors::Const::SetReqToStr($type) . "($type)" if $command eq MySensors::Const::MessageType('REQ') or 
 												                 $command eq MySensors::Const::MessageType('SET');
 	$typeStr = MySensors::Const::InternalToStr($type)  . "($type)" if $command eq MySensors::Const::MessageType('INTERNAL');
@@ -217,6 +252,7 @@ sub process {
 	my($nodeid,$sensor,$command,
 	   $acknowledge,$type,$payload) = ($1,$2,$3,$4,$5,$6);
 
+	$self->{log}->debug("Got(raw): ", $data);
 	$self->{log}->debug("Got: ", msg2str($nodeid,$sensor,$command,$acknowledge,$type,$payload));
 
 	$self->{lastMsg} = time;

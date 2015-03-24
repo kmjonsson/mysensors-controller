@@ -28,7 +28,8 @@ sub new {
 sub _query {
         my($self,$sql,@args) = @_;
         my $sth = $self->{dbh}->prepare($sql);
-        if($sth->execute(@args)) {
+        if($sth->execute(@args) < 0) {
+			$self->{log}->debug("Query failed: $sql = " . join(",",@args) . " - " . $DBI::errstr );
 			return;
         }
         my @result;
@@ -42,56 +43,59 @@ sub _query {
 
 sub _call {
 	my($self,$func,@args) = @_;
-	my $sql = "select $func(" . join(",",map { "?" } 1 .. (scalar @args)) . ")";
-	#printf("%s(%s)\n",$sql,join(" , ",@args));
+	my $sql = "select $func";
+	#printf("%s <- (%s)\n",$sql,join(" , ",@args));
 	my $result = $self->_query($sql,@args);
 	return unless defined $result;
+	return unless defined $result->[0];
+	#print "Result: " . Dumper($result) . "\n";
+	#print "Result: " . Dumper(@{$result->[0]}) . "\n";
 	return @{$result->[0]};
 }
 
 sub saveProtocol {
 	my($self,$nodeid,$protocol) = @_;
-	return $self->_call('save_protocol',$nodeid,$protocol);
+	return $self->_call('save_protocol(?::integer,?::text)',$nodeid,$protocol);
 }
 
 sub saveSensor {
 	my($self,$nodeid,$sensor,$type) = @_;
-	return $self->_call('save_sensor',$nodeid,$sensor,$type);
+	return $self->_call('save_sensor(?::integer,?::integer,?::integer)',$nodeid,$sensor,$type);
 }
 
 sub getNextAvailableNodeId {
 	my($self) = @_;
-	return $self->_call('get_next_available_nodeid');
+	return $self->_call('get_next_available_nodeid()');
 }
 
 sub saveValue {
 	my ($self,$nodeid,$sensor,$type,$value) = @_;
-	return $self->_call('save_value',$nodeid,$sensor,$type,$value);
+	return $self->_call('save_value(?::integer,?::integer,?::integer,?::text)',$nodeid,$sensor,$type,$value);
 }
 
 sub getValue {
 	my ($self,$nodeid,$sensor,$type) = @_;
-	return $self->_call('get_value',$nodeid,$sensor,$type);
+	return $self->_call('get_value(?::integer,?::integer,?::integer)',$nodeid,$sensor,$type);
 }
 
 sub saveBatteryLevel {
 	my ($self,$nodeid,$batteryLevel) = @_;
-	return $self->_call('save_batterylevel',$nodeid,$batteryLevel);
+	return $self->_call('save_batterylevel(?::integer,?::integer)',$nodeid,$batteryLevel);
 }
 
 sub saveSketchName {
 	my ($self,$nodeid,$name) = @_;
-	return $self->_call('save_sketch_name',$nodeid,$name);
+	return $self->_call('save_sketch_name(?::integer,?::text)',$nodeid,$name);
 }
 
 sub saveSketchVersion {
 	my ($self,$nodeid,$version) = @_;
-	return $self->_call('save_sketch_version',$nodeid,$version);
+	return $self->_call('save_sketch_version(?::integer,?::text)',$nodeid,$version);
 }
 
 sub saveVersion {
 	my ($self,$nodeid,$version) = @_;
-	return $self->_call('save_version',$nodeid,$version);
+	return $self->_call('save_version(?::integer,?::text)',$nodeid,$version);
 }
 
 1;
