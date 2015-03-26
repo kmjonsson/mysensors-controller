@@ -28,7 +28,7 @@ sub new {
 			$p->register($self);
 		}
 	}
-	$self->{log}->debug("Controller initialized");
+	$self->{log}->info("Controller initialized");
 	return $self;
 }
 
@@ -51,6 +51,11 @@ sub call_back {
 sub setSocket {
 	my($self,$socket) = @_;
 	return $self->{socket} = $socket;
+}
+
+sub backend {
+	my($self) = @_;
+	return $self->{backend};
 }
 
 # Send #
