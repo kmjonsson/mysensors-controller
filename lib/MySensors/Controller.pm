@@ -4,6 +4,8 @@ package MySensors::Controller;
 use strict;
 use warnings;
 
+use Thread::Queue;
+
 use MySensors::Const;
 
 sub new {
@@ -12,15 +14,16 @@ sub new {
 
 	my $self  = {
 		'backend' => $opts->{backend},
+		'radio'   => $opts->{radio},
 		'plugins' => $opts->{plugins},
-		'socket'  => $opts->{socket},
 		'debug'   => $opts->{debug} // 1,
-		'timeout' => $opts->{timeout} // 30,
+		'timeout' => $opts->{timeout} // 300,
 		'config'  => $opts->{config} // 'M',
 		'callbacks' => {},
 		'version' => undef,
 		'lastMsg' => time,
 		'log'     => Log::Log4perl->get_logger(__PACKAGE__),
+		'inqueue' => Thread::Queue->new(),
 	};
 	bless ($self, $class);
 	if(defined $self->{'plugins'}) {
@@ -28,6 +31,7 @@ sub new {
 			$p->register($self);
 		}
 	}
+	return undef unless $self->{radio}->init($self);
 	$self->{log}->info("Controller initialized");
 	return $self;
 }
@@ -46,11 +50,6 @@ sub call_back {
 	foreach my $o (@{$self->{callbacks}->{$method}}) {
 		$o->$method(@arg);
 	}
-}
-
-sub setSocket {
-	my($self,$socket) = @_;
-	return $self->{socket} = $socket;
 }
 
 sub backend {
@@ -75,12 +74,12 @@ sub send {
 
 	# encode message
 	my $td = join(";",$destination,$sensor,$command,
-	                  $acknowledge,$type,$payload) . "\n";
+	                  $acknowledge,$type,$payload);
 
 	$self->{log}->debug("Sending: ",msg2str($destination,$sensor,$command,$acknowledge,$type,$payload));
 
 	# send message
-	my $size = $self->{socket}->send($td);
+	my $size = $self->{radio}->send($td);
 	if($size != length($td)) {
 		$self->{log}->warn("Failed to write message");
 		return;
@@ -244,6 +243,25 @@ sub msg2str {
 	$typeStr = MySensors::Const::InternalToStr($type)  . "($type)" if $command eq MySensors::Const::MessageType('INTERNAL');
 	$payload = "" unless defined $payload;
 	return join(" ; ","NodeID:$nodeid","Sensor:$sensor",$commandStr,$acknowledgeStr,$typeStr,$payload);
+}
+
+sub shutdown {
+	my($self) = @_;
+	$self->{inqueue}->enqueue("# SHUTDOWN #");
+}
+
+sub run {
+	my($self,$timeout) = @_;
+	while (defined(my $msg = $self->{inqueue}->dequeue_timed($timeout))) {
+		last if $msg eq '# SHUTDOWN #';
+		$self->process($msg);
+	}
+}
+
+# This is called by other thread(s)
+sub receive {
+	my($self,$msg) = @_;
+	$self->{inqueue}->enqueue($msg);
 }
 
 sub process {
