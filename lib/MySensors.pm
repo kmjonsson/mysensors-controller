@@ -18,13 +18,11 @@ sub new {
 	my $self  = {
 		'timeout'		=> $opts->{'timeout'} // 300,
 		'radio'    		=> $opts->{'radio'},
-		'debug'    		=> $opts->{'debug'} // 0,
 		'plugins'		=> $opts->{'plugins'},
 		'controller'	=> MySensors::Controller->new({
 														radio => $opts->{radio},
 														backend => $opts->{'backend'}, 
 														timeout => $opts->{'timeout'} // 300, 
-														debug => $opts->{debug}, 
 														plugins => $opts->{plugins},
 													}),
 		'log' 			=> Log::Log4perl->get_logger(__PACKAGE__),

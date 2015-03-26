@@ -16,7 +16,6 @@ sub new {
 		'backend' => $opts->{backend},
 		'radio'   => $opts->{radio},
 		'plugins' => $opts->{plugins},
-		'debug'   => $opts->{debug} // 1,
 		'timeout' => $opts->{timeout} // 300,
 		'config'  => $opts->{config} // 'M',
 		'callbacks' => {},

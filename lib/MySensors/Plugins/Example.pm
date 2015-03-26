@@ -15,7 +15,7 @@ sub new {
 		'log' => Log::Log4perl->get_logger(__PACKAGE__),
 	};
 	bless ($self, $class);
-	$self->{log}->debug(__PACKAGE__ . " initialized");
+	$self->{log}->info(__PACKAGE__ . " initialized");
 	return $self;
 }
 
