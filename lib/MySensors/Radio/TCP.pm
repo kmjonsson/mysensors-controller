@@ -9,22 +9,25 @@ use Thread::Queue;
 
 use IO::Socket::INET;
 
+use Data::Dumper;
+
 sub new {
 	my($class) = shift;
 	my($opts) = shift // {};
 	my $self  = {
+		'log' 			=> Log::Log4perl->get_logger(__PACKAGE__),
+		# Options
 		'timeout'		=> $opts->{'timeout'} // 300,
 		'host'    		=> $opts->{'host'} // '127.0.0.1',
 		'port'    		=> $opts->{'port'} // 5003,
 		'reconnect'		=> $opts->{'reconnect'} // 0,
+		# vars
 		'socket'		=> undef,
 		'controller'	=> undef,
 		'id'			=> undef,
-		'log' 			=> Log::Log4perl->get_logger(__PACKAGE__),
 		'inqueue'       => undef,
 	};
 	bless ($self, $class);
-	$self->start();
 	return $self;
 }
 
@@ -38,6 +41,8 @@ sub init {
 
 	$self->{controller} = $controller;
 	$self->{id} = $id;
+
+	$self->start();
 
 	return $self;
 }
@@ -86,14 +91,15 @@ sub start {
 		return;
 	}
 
-	# Start send thread
-	$self->{'sendthr'} = Thread->new(
-		 sub { $self->send_thr(); }
-	);
 	# Start receive thread
 	$self->{'recvthr'} = Thread->new(
 		 sub { $self->receive_thr(); }
 	);
+	# Start send thread
+	$self->{'sendthr'} = Thread->new(
+		 sub { $self->send_thr(); }
+	);
+	$self->{log}->error("Connected");
 	return $self;
 }
 
