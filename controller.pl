@@ -25,10 +25,6 @@ if(scalar @$radio == 0) {
 	$log->error("Can't init Radio");
 	exit(1);
 }
-if(scalar @$radio > 1) {
-	$log->error("Multiple Radios defined");
-	exit(1);
-}
 
 # Backend
 my($backend) = loadGroup('Backend');
@@ -44,7 +40,7 @@ if(scalar @$backend > 1) {
 # Plugins
 my($plugins) = loadGroup("Plugin");
 
-my $mysensors = loadPackage('MySensors',{ radio => $radio->[0], backend => $backend->[0], plugins => $plugins }) || croak "Can't init MySensors";
+my $mysensors = loadPackage('MySensors',{ radio => $radio, backend => $backend->[0], plugins => $plugins }) || croak "Can't init MySensors";
 if(!defined $mysensors) {
 	$log->error("Can't init MySensors");
 	exit(1);

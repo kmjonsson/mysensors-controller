@@ -19,8 +19,9 @@ sub new {
 		'timeout' => $opts->{timeout} // 300,
 		'config'  => $opts->{config} // 'M',
 		'callbacks' => {},
+		'route'   => {},
 		'version' => undef,
-		'lastMsg' => time,
+		'lastMsg' => {},
 		'log'     => Log::Log4perl->get_logger(__PACKAGE__),
 		'inqueue' => Thread::Queue->new(),
 	};
@@ -30,7 +31,11 @@ sub new {
 			$p->register($self);
 		}
 	}
-	return undef unless $self->{radio}->init($self);
+	my $id = 0;
+	foreach my $r (@{$self->{radio}}) {
+		$self->{lastMsg}->{$id} = time;
+		return unless $r->init($self,$id++);
+	}
 	$self->{log}->info("Controller initialized");
 	return $self;
 }
@@ -78,10 +83,14 @@ sub send {
 	$self->{log}->debug("Sending: ",msg2str($destination,$sensor,$command,$acknowledge,$type,$payload));
 
 	# send message
-	my $size = $self->{radio}->send($td);
-	if($size != length($td)) {
-		$self->{log}->warn("Failed to write message");
-		return;
+	foreach my $r (@{$self->{radio}}) {
+		next if defined $self->{route}->{$destination} && $_->id() != $self->{route}->{$destination};
+		$self->{log}->debug("Sending via " . $r->id());
+		my $ret = $r->send({ type => 'PACKET', data => $td });
+		if(!defined $ret) {
+			$self->{log}->warn("Failed to write message via " . $r->id());
+			return;
+		}
 	}
 	return $self;
 }
@@ -244,17 +253,10 @@ sub msg2str {
 	return join(" ; ","NodeID:$nodeid","Sensor:$sensor",$commandStr,$acknowledgeStr,$typeStr,$payload);
 }
 
+# This is called by other thread(s)
 sub shutdown {
 	my($self) = @_;
-	$self->{inqueue}->enqueue("# SHUTDOWN #");
-}
-
-sub run {
-	my($self,$timeout) = @_;
-	while (defined(my $msg = $self->{inqueue}->dequeue_timed($timeout))) {
-		last if $msg eq '# SHUTDOWN #';
-		$self->process($msg);
-	}
+	$self->receive({ type => "SHUTDOWN" });
 }
 
 # This is called by other thread(s)
@@ -263,8 +265,39 @@ sub receive {
 	$self->{inqueue}->enqueue($msg);
 }
 
+sub run {
+	my($self,$timeout) = @_;
+	if($self->{inqueue}->can("dequeue_timed")) {
+		while (defined(my $msg = $self->{inqueue}->dequeue_timed($timeout))) {
+			last if !defined $msg;
+			last if $msg->{type} eq 'SHUTDOWN';
+			if($msg->{type} eq 'PACKET') {
+				$self->process($msg);
+			}
+		}
+	} else {
+		my $t = $timeout;
+		while (defined $self->{inqueue}->pending() && $timeout > 0) {
+			if ($self->{inqueue}->pending() <= 0) {
+				$timeout--;
+				sleep 1;
+				next;
+			}
+			my $msg = $self->{inqueue}->dequeue_nb();
+			last if !defined $msg;
+			last if $msg->{type} eq 'SHUTDOWN';
+			if($msg->{type} eq 'PACKET') {
+				$self->process($msg);
+			}
+			$t = $timeout;
+		}
+	}
+}
+
 sub process {
-	my($self,$data) = @_;
+	my($self,$msg) = @_;
+
+	my $data = $msg->{data};
 
 	chomp($data);
 	if($data !~ /^(\d+);(\d+);(\d+);(\d+);(\d+);(.*)$/) {
@@ -277,7 +310,9 @@ sub process {
 	$self->{log}->debug("Got(raw): ", $data);
 	$self->{log}->debug("Got: ", msg2str($nodeid,$sensor,$command,$acknowledge,$type,$payload));
 
-	$self->{lastMsg} = time;
+	$self->{route}->{$nodeid} = $msg->{radio};
+
+	$self->{lastMsg}->{$nodeid} = time;
 
 	if($command == MySensors::Const::MessageType('STREAM')) {
 		$self->{log}->error("STREAM not implemented yet");
@@ -341,10 +376,18 @@ sub getVersion {
 # 1 = OK
 # 0 = FAIL
 sub timeoutCheck {
-	my($self) = @_;
+	my($self,$id) = @_;
 	# if no message is received in timeout seconds (something is bad).
-	if($self->{lastMsg} > 0 && $self->{lastMsg} < time - $self->{timeout}) {
-		return 0;
+	if(defined $id) {
+		if($self->{lastMsg}->{$id} > 0 && $self->{lastMsg}->{$id} < time - $self->{timeout}) {
+			return 0;
+		}
+	} else {
+		foreach my $r (@{$self->{radio}}) {
+			if($self->{lastMsg}->{$r->id()} > 0 && $self->{lastMsg}->{$r->id()} < time - $self->{timeout}) {
+				return 0;
+			}
+		}
 	}
 	return 1;
 }

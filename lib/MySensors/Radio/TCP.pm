@@ -19,18 +19,50 @@ sub new {
 		'reconnect'		=> $opts->{'reconnect'} // 0,
 		'socket'		=> undef,
 		'controller'	=> undef,
+		'id'			=> undef,
 		'log' 			=> Log::Log4perl->get_logger(__PACKAGE__),
-		'inqueue'       => Thread::Queue->new(),
+		'inqueue'       => undef,
 	};
 	bless ($self, $class);
+	$self->start();
 	return $self;
 }
 
+sub id {
+	my($self) = @_;
+	return $self->{id};
+}
+
 sub init {
-	my($self,$controller) = @_;
+	my($self,$controller,$id) = @_;
 
 	$self->{controller} = $controller;
+	$self->{id} = $id;
 
+	return $self;
+}
+
+sub restart {
+	my($self) = @_;
+	$self->{log}->info("Restarting " . $self->{host} . ":" . $self->{port});
+	$self->shutdown();
+	if(defined $self->{'socket'}) {
+		$self->{'socket'}->close();
+	}
+	if(defined $self->{'sendthr'} && $self->{'sendthr'}->done()) {
+		$self->{'sendthr'}->join();
+	}
+	if(defined $self->{'recvthr'} && $self->{'recvthr'}->done()) {
+		$self->{'recvthr'}->join();
+	}
+	if(defined $self->{inqueue}) {
+		$self->{inqueue}->end();
+	}
+	return $self->start();
+}
+
+sub start {
+	my($self) = @_;
 	eval {
 		local $SIG{ALRM} = sub { }; # do nothing but interrupt the syscall.
 		alarm($self->{'timeout'});
@@ -47,6 +79,8 @@ sub init {
 	};
 	alarm(0); # race cond.
 	
+	$self->{inqueue} = Thread::Queue->new();
+
 	if(!defined $self->{'socket'}) {
 		$self->{log}->error("Failed to connect to server");
 		return;
@@ -65,13 +99,17 @@ sub init {
 
 sub status {
 	my($self) = @_;
+	return 1 unless defined $self->{'sendthr'};
+	return 1 unless defined $self->{'recvthr'};
 	my $status = 0;
 	if($self->{'sendthr'}->done()) {
 		$self->{'sendthr'}->join();
+		$self->{'sendthr'} = undef;
 		$status = 1;
 	}
 	if($self->{'recvthr'}->done()) {
 		$self->{'recvthr'}->join();
+		$self->{'recvthr'} = undef;
 		$status = 1;
 	}
 	return $status;
@@ -79,25 +117,32 @@ sub status {
 
 sub send {
 	my($self,$msg) = @_;
-	$self->{inqueue}->enqueue($msg);
-	return length($msg);
+	if(defined $self->{inqueue}) {
+		$self->{inqueue}->enqueue($msg);
+	}
+	return $self;
+}
+
+sub shutdown {
+	my($self) = @_;
+	if(defined $self->{inqueue}) {
+		$self->{'inqueue'}->enqueue({ type => "SHUTDOWN"}); 
+	}
 }
 
 sub send_thr {
 	my($self) = @_;
 	while (defined(my $msg = $self->{inqueue}->dequeue())) {
-		last if $msg eq '# SHUTDOWN #';
-		my $size = $self->{socket}->send("$msg\n");
-		if($size != length("$msg\n")) {
-			$self->{log}->warn("Failed to write message");
+		last if $msg->{type} eq 'SHUTDOWN';
+		if($msg->{type} eq 'PACKET') {
+			my $data = $msg->{data};
+			my $size = $self->{socket}->send("$data\n");
+			if($size != length("$data\n")) {
+				$self->{log}->warn("Failed to write message");
+			}
 		}
 	}
 	$self->{log}->warn("Exit...");
-}
-
-sub shutdown {
-	my($self) = @_;
-	$self->{'inqueue'}->enqueue("# SHUTDOWN #"); 
 }
 
 sub receive_thr {
@@ -140,7 +185,7 @@ sub receive_thr {
 			$msg .= $response;
 		}
 		for ( grep { length > 8 && !/^#/ } @msgs ) { 
-			$self->{'controller'}->receive($_); 
+			$self->{'controller'}->receive({ type => "PACKET", data => $_ }); 
 		}
 	}
 	$self->{'socket'}->close();

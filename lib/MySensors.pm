@@ -45,20 +45,16 @@ sub run {
 
 		$self->{controller}->run($self->{timeout});
 
-		# Check radio status
-		if($self->{radio}->status()) {
-			$self->{log}->error("Radio failed. Exiting");
-			last;
+		# Check if no message received in timeout s or radio failed.
+		foreach my $r (@{$self->{radio}}) {
+			if($r->status() || !$self->{'controller'}->timeoutCheck($r->id())) {
+				$self->{log}->error("Radio " . $r->id() . " failed. Restarting");
+				$r->restart();
+			}
 		}
 
 		# Send version request (~gateway ping).
 		$self->{'controller'}->sendVersionCheck();
-
-		# Check if no message received in timeout s.
-		if(!$self->{'controller'}->timeoutCheck()) {
-			$self->{log}->error("Timeout. Exiting");
-			last;
-		}
 	}
 }
 

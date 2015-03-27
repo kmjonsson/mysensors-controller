@@ -179,8 +179,8 @@ BEGIN
 				sensor = var_sensor.id 
 			AND 
 				type = in_type 
-			AND
-				now() - last < var_sensor.ttl
+	--		AND
+	--			now() - last < var_sensor.ttl
 		ORDER BY last DESC,first DESC LIMIT 1;
 	IF NOT FOUND THEN
 		return NULL;
