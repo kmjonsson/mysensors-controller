@@ -5,12 +5,9 @@ DROP TABLE nodes;
 -- Information about nodes.
 CREATE TABLE nodes (
 	id		serial PRIMARY KEY NOT NULL,
+	node		int NOT NULL CHECK (id > 0),
 	first		timestamp NOT NULL DEFAULT now(),
 	last		timestamp NOT NULL DEFAULT now(),
-	node		int NOT NULL CHECK (id > 0),
-	protocol	text,
-	sketchname	text,
-	sketchversion	text,
 	CHECK		(first <= last)
 );
 
@@ -52,7 +49,7 @@ BEGIN
 	SELECT id INTO var_node FROM nodes WHERE node = in_node 
 		ORDER BY last DESC,first DESC LIMIT 1;
 	IF NOT FOUND THEN
-		return false;
+		INSERT INTO nodes (node) VALUES (var_node);
 	END IF;
 	SELECT id,type,ttl INTO var_sensor FROM sensors 
 		WHERE node = var_node.id AND sensor = in_sensor
@@ -68,7 +65,7 @@ BEGIN
 	END IF;
 	-- Add new
 	INSERT INTO sensors (node,sensor,type,ttl) 
-		VALUES (var_node.id,in_sensor,in_type.var_sensor.ttl);
+		VALUES (var_node.id,in_sensor,in_type,var_sensor.ttl);
 	RETURN true;
 END;
 $save_sensor$
@@ -199,9 +196,9 @@ DECLARE
         var_value      TEXT;
 	var_res        BOOLEAN;
 BEGIN   
-	SELECT get_value(in_node,255,17) INTO var_value;
+	SELECT get_value(in_node,255,38) INTO var_value;
 	IF var_value IS NULL THEN
-		PERFORM save_sensor(in_node,255,17);
+		PERFORM save_sensor(in_node,255,38);
 	END IF;
 	SELECT save_value(in_node,255,38,in_level::text) INTO var_res;
 	RETURN var_res;
@@ -215,29 +212,15 @@ CREATE OR REPLACE FUNCTION save_protocol (
 	)
 RETURNS boolean AS $save_protocol$
 DECLARE
-	var_node	RECORD;
+        var_value      TEXT;
+	var_res        BOOLEAN;
 BEGIN
-	-- Fetch node
-	SELECT * INTO var_node FROM nodes 
-		WHERE node = in_node 
-		ORDER BY last DESC,first DESC LIMIT 1;
-	IF NOT FOUND THEN
-		RETURN false;
+	SELECT get_value(in_node,255,10000) INTO var_value;
+	IF var_value IS NULL THEN
+		PERFORM save_sensor(in_node,255,255);
 	END IF;
-
-	IF var_node.protocol IS NULL THEN
-		UPDATE nodes SET protocol = in_protocol, last = now() WHERE id = var_node.id;
-		return true;
-	END IF;
-	-- Update
-	UPDATE nodes SET last = now() WHERE id = var_node.id;
-	IF var_node.protocol = in_protocol THEN
-		return true;
-	END IF;
-	INSERT INTO nodes (node,protocol,sketchname,sketchversion) 
-		VALUES    (in_node,in_protocol,var_node.sketchname,
-				var_node.sketchversion);
-	RETURN true;
+	SELECT save_value(in_node,255,10000,in_protocol::text) INTO var_res;
+	RETURN var_res;
 END;
 $save_protocol$
 LANGUAGE plpgsql;
@@ -248,30 +231,15 @@ CREATE OR REPLACE FUNCTION save_sketch_name (
 	)
 RETURNS boolean AS $save_sketch_name$
 DECLARE
-	var_node	RECORD;
+        var_value      TEXT;
+	var_res        BOOLEAN;
 BEGIN
-	-- Fetch node
-	SELECT * INTO var_node FROM nodes 
-		WHERE node = in_node 
-		ORDER BY last DESC,first DESC LIMIT 1;
-	IF NOT FOUND THEN
-		RETURN false;
+	SELECT get_value(in_node,255,10001) INTO var_value;
+	IF var_value IS NULL THEN
+		PERFORM save_sensor(in_node,255,255);
 	END IF;
-	
-	-- Check
-	IF var_node.sketchname IS NULL THEN
-		UPDATE nodes SET sketchname = in_name, last = now() WHERE id = var_node.id;
-		return true;
-	END IF;
-
-	-- Update
-	UPDATE nodes SET last = now() WHERE id = var_node.id;
-	IF var_node.sketchname = in_name THEN
-		return true;
-	END IF;
-	INSERT INTO nodes (node,protocol,sketchname,sketchversion) 
-		VALUES    (in_node,var_node.protocol,in_name,var_node.sketchversion);
-	RETURN true;
+	SELECT save_value(in_node,255,10001,in_protocol::text) INTO var_res;
+	RETURN var_res;
 END;
 $save_sketch_name$
 LANGUAGE plpgsql;
@@ -282,30 +250,15 @@ CREATE OR REPLACE FUNCTION save_sketch_version (
 	)
 RETURNS boolean AS $save_sketch_version$
 DECLARE
-	var_node	RECORD;
+        var_value      TEXT;
+	var_res        BOOLEAN;
 BEGIN
-	-- Fetch node
-	SELECT * INTO var_node FROM nodes 
-		WHERE node = in_node 
-		ORDER BY last DESC,first DESC LIMIT 1;
-	IF NOT FOUND THEN
-		RETURN false;
+	SELECT get_value(in_node,255,10002) INTO var_value;
+	IF var_value IS NULL THEN
+		PERFORM save_sensor(in_node,255,255);
 	END IF;
-
-	-- Check
-	IF var_node.sketchversion IS NULL THEN
-		UPDATE nodes SET sketchversion = in_version, last = now() WHERE id = var_node.id;
-		return true;
-	END IF;
-	IF var_node.sketchversion = in_version THEN
-		return true;
-	END IF;
-
-	-- Update
-	UPDATE nodes SET last = now() WHERE id = var_node.id;
-	INSERT INTO nodes (node,protocol,sketchname,sketchversion) 
-		VALUES    (in_node,var_node.protocol,var_node.sketchname,in_version);
-	RETURN true;
+	SELECT save_value(in_node,255,10002,in_protocol::text) INTO var_res;
+	RETURN var_res;
 END;
 $save_sketch_version$
 LANGUAGE plpgsql;
@@ -322,6 +275,3 @@ BEGIN
 END;
 $save_version$
 LANGUAGE plpgsql;
-
-select get_next_available_nodeid();
-select save_sensor(1,0,6);

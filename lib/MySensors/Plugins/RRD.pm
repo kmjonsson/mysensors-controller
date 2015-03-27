@@ -63,7 +63,7 @@ sub saveValue {
 		return;
 	}
 	$typestr = "\L$typestr";
-	$self->{log}->debug("Update: $file ($nodeid,$sensor,$typestr) <- $t:$value");
+	$self->{log}->debug("Update: $file ($nodeid,$sensor,$typestr\[$type\]) <- $t:$value");
 	RRDs::update($file,"--template", $typestr ,"$t:$value");
 	return;
 }

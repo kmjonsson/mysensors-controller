@@ -64,6 +64,11 @@ my %setreq = (
 	'DUST_LEVEL' => 37,
 	'VOLTAGE' => 38,
 	'CURRENT' => 39,
+
+	# Internal ID
+	'X-PROTOCOL' => 10000,
+	'X-SKETCHNAME' => 10001,
+	'X-SKETCHVERSION' => 10002,
 );
 
 sub SetReq {
@@ -135,6 +140,9 @@ my %presentation = (
 	'CUSTOM' => 23,
 	'DUST' => 24,
 	'SCENE_CONTROLLER' => 25,
+
+	# internal
+	'X-UNKNOWN' => 255,
 );
 
 sub Presentation {
