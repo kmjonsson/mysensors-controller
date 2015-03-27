@@ -51,10 +51,10 @@ $mysensors->run();
 sub loadPackage {
 	my($package,$extra,$section) = @_;
 	$section //= $package;
-	$log->info("Loading package $package");
+	$log->info("Loading $section");
 	eval "use $package";
 	if( $@ ) { 
-		$log->error("Unable to load package $package: " . $@ );
+		$log->error("Unable to load $section: " . $@ );
 		return undef;
 	}
 	my %opts;
@@ -71,10 +71,14 @@ sub loadGroup {
 	my($group,$extra) = @_;
 	my @result;
 	foreach my $section ($cfg->GroupMembers($group)) {
-		my($grp,$package) = split(/\s+/,$section,2);
+		if($section !~ /^(\S+)\s+([^#]+)(#\d+|)$/) {
+			$log->error("Bad section format '$section'. Expected: '$group <Module>' or '$group <Module>#<number>'");
+			next;
+		}
+		my($grp,$package,$n) = ($1,$2,$3);
 		my $p = loadPackage($package,$extra,$section);
 		if(!defined $p) {
-			$log->error("Can't init Plugin: $package");
+			$log->error("Can't init Plugin: $package$n");
 			exit(1);
 		}
 		push @result,$p;
