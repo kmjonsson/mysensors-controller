@@ -49,23 +49,28 @@ BEGIN
 	SELECT id INTO var_node FROM nodes WHERE node = in_node 
 		ORDER BY last DESC,first DESC LIMIT 1;
 	IF NOT FOUND THEN
-		INSERT INTO nodes (node) VALUES (var_node);
+		INSERT INTO nodes (node) VALUES (in_node);
+		SELECT id INTO var_node FROM nodes WHERE node = in_node 
+			ORDER BY last DESC,first DESC LIMIT 1;
 	END IF;
+	UPDATE nodes SET last = now() WHERE id = var_node.id;
 	SELECT id,type,ttl INTO var_sensor FROM sensors 
 		WHERE node = var_node.id AND sensor = in_sensor
 		ORDER BY last DESC,first DESC LIMIT 1;
-	UPDATE nodes SET last = now() WHERE id = var_node.id;
-	-- If found update last
+	-- If sensor found last
 	IF FOUND THEN
 		UPDATE sensors SET last = now() WHERE id = var_sensor.id;
 		-- if same we are done.
 		IF var_sensor.type = in_type THEN
 			return TRUE;
 		END IF;
+		-- Add new
+		INSERT INTO sensors (node,sensor,type,ttl) 
+			VALUES (var_node.id,in_sensor,in_type,var_sensor.ttl);
+	ELSE
+		INSERT INTO sensors (node,sensor,type) 
+			VALUES (var_node.id,in_sensor,in_type);
 	END IF;
-	-- Add new
-	INSERT INTO sensors (node,sensor,type,ttl) 
-		VALUES (var_node.id,in_sensor,in_type,var_sensor.ttl);
 	RETURN true;
 END;
 $save_sensor$
@@ -238,7 +243,7 @@ BEGIN
 	IF var_value IS NULL THEN
 		PERFORM save_sensor(in_node,255,255);
 	END IF;
-	SELECT save_value(in_node,255,10001,in_protocol::text) INTO var_res;
+	SELECT save_value(in_node,255,10001,in_name::text) INTO var_res;
 	RETURN var_res;
 END;
 $save_sketch_name$
@@ -257,7 +262,7 @@ BEGIN
 	IF var_value IS NULL THEN
 		PERFORM save_sensor(in_node,255,255);
 	END IF;
-	SELECT save_value(in_node,255,10002,in_protocol::text) INTO var_res;
+	SELECT save_value(in_node,255,10002,in_value::text) INTO var_res;
 	RETURN var_res;
 END;
 $save_sketch_version$
