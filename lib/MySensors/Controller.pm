@@ -310,7 +310,7 @@ sub process {
 	$self->{log}->debug("Got(raw): ", $data);
 	$self->{log}->debug("Got: ", msg2str($nodeid,$sensor,$command,$acknowledge,$type,$payload));
 
-	$self->{route}->{$nodeid} = $msg->{radio};
+	$self->{route}->{$nodeid} = $msg->{radio} if $nodeid > 0 && $nodeid < 255;
 
 	$self->{lastMsg}->{$nodeid} = time;
 
