@@ -123,38 +123,39 @@ sub sendValue {
 		$self->{log}->debug("Got no value from backend :-( sending empty string");
 		$value = "";
 	}
+	($nodeid, $sensor, $type, $value) = $self->call_back('sendValue', $nodeid, $sensor, $type, $value);
 	$self->send($nodeid,
 			$sensor,
 			MySensors::Const::MessageType('SET'),
 			0,
 			$type,
 			$value);
-	$self->call_back('sendValue', $nodeid, $sensor, $type, $value);
 }
 
 sub sendTime {
 	my ($self,$nodeid,$sensor) = @_;
 	$self->{log}->debug("NodeID: $nodeid sensor: $sensor");
 	my $t = time;
+	($nodeid,$t) = $self->call_back('sendTime', $nodeid, $t);
 	$self->send($nodeid,
 			$sensor,
 			MySensors::Const::MessageType('INTERNAL'),
 			0,
 			MySensors::Const::Internal('TIME'),
 			$t);
-	$self->call_back('sendTime', $nodeid, $t);
 }
 
 sub sendConfig {
 	my ($self,$dest) = @_;
 	$self->{log}->debug("Dest: $dest");
+	my $config = $self->{config};
+	($dest,$config) = $self->call_back('sendConfig', $dest, $config);
 	$self->send($dest,
 			MySensors::Const::NodeSensorId(),
 			MySensors::Const::MessageType('INTERNAL'),
 			0,
 			MySensors::Const::Internal('CONFIG'),
-			$self->{config});
-	$self->call_back('sendConfig', $dest, $self->{config});
+			$config);
 }
 
 sub sendVersionCheck {
@@ -174,7 +175,7 @@ sub sendVersionCheck {
 sub saveProtocol {
 	my($self,$nodeid,$protocol) = @_;
 	$self->{log}->debug("NodeID: $nodeid protocol: $protocol");
-	$self->call_back('saveProtocol', $nodeid, $protocol);
+	($nodeid, $protocol) = $self->call_back('saveProtocol', $nodeid, $protocol);
 	if($self->{backend}->can("saveProtocol")) {
 		return $self->{backend}->saveProtocol($nodeid,$protocol);
 	}
@@ -183,7 +184,7 @@ sub saveProtocol {
 sub saveSensor {
 	my($self,$nodeid,$sensor,$type) = @_;
 	$self->{log}->debug("NodeID: $nodeid sensor: $sensor type: $type");
-	$self->call_back('saveSensor', $nodeid, $sensor, $type);
+	($nodeid,$sensor,$type) = $self->call_back('saveSensor', $nodeid, $sensor, $type);
 	if($self->{backend}->can("saveSensor")) {
 		return $self->{backend}->saveSensor($nodeid,$sensor,$type);
 	}
@@ -192,7 +193,7 @@ sub saveSensor {
 sub saveValue {
 	my ($self,$nodeid,$sensor,$type,$value) = @_;
 	$self->{log}->debug("NodeID: $nodeid sensor: $sensor type: $type value: $value");
-	$self->call_back('saveValue', $nodeid, $sensor, $type, $value);
+	($nodeif,$sensor,$type,$value) = $self->call_back('saveValue', $nodeid, $sensor, $type, $value);
 	if($self->{backend}->can("saveValue")) {
 		return $self->{backend}->saveValue($nodeid,$sensor,$type,$value);
 	}
@@ -202,7 +203,7 @@ sub saveValue {
 sub saveBatteryLevel {
 	my($self,$nodeid,$batteryLevel) = @_;
 	$self->{log}->debug("NodeID: $nodeid batteryLevel $batteryLevel");
-	$self->call_back('saveBatteryLevel', $nodeid, $batteryLevel);
+	($nodeid,$batteryLevel) = $self->call_back('saveBatteryLevel', $nodeid, $batteryLevel);
 	if($self->{backend}->can("saveBatteryLevel")) {
 		return $self->{backend}->saveBatteryLevel($nodeid,$batteryLevel);
 	}
@@ -211,7 +212,7 @@ sub saveBatteryLevel {
 sub saveSketchName {
 	my($self,$nodeid,$name) = @_;
 	$self->{log}->debug("NodeID: $nodeid name: $name");
-	$self->call_back('saveSketchName', $nodeid, $name);
+	($nodeif,$name) = $self->call_back('saveSketchName', $nodeid, $name);
 	if($self->{backend}->can("saveSketchName")) {
 		return $self->{backend}->saveSketchName($nodeid,$name);
 	}
@@ -220,7 +221,7 @@ sub saveSketchName {
 sub saveSketchVersion {
 	my($self,$nodeid,$version) = @_;
 	$self->{log}->debug("NodeID: $nodeid version: $version");
-	$self->call_back('saveSketchVersion', $nodeid, $version);
+	($nodeid,$version) = $self->call_back('saveSketchVersion', $nodeid, $version);
 	if($self->{backend}->can("saveSketchVersion")) {
 		return $self->{backend}->saveSketchVersion($nodeid,$version);
 	}
@@ -230,8 +231,8 @@ sub saveVersion {
 	my($self,$nodeid,$version) = @_;
 	$self->{log}->debug("Got version: Node=$nodeid Version=$version");
 	if($nodeid == 0) {
+		($nodeid,$version) = $self->call_back('saveVersion', $nodeid, $version);
 		$self->{version} = $version;
-		$self->call_back('saveVersion', $nodeid, $version);
 		if($self->{backend}->can("saveVersion")) {
 			return $self->{backend}->saveVersion($nodeid,$version);
 		}
@@ -311,7 +312,8 @@ sub process {
 	$self->{log}->debug("Got: ", msg2str($nodeid,$sensor,$command,$acknowledge,$type,$payload));
 
 	# call plugin with data
-	$self->call_back('process',$data,$nodeid,$sensor,$command,$acknowledge,$type,$payload);
+	($data,$nodeid,$sensor,$command,$acknowledge,$type,$payload) =
+		$self->call_back('process',$data,$nodeid,$sensor,$command,$acknowledge,$type,$payload);
 
 	$self->{route}->{$nodeid} = $msg->{radio} if $nodeid > 0 && $nodeid < 255;
 

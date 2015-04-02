@@ -30,13 +30,13 @@ sub register {
 sub saveVersion{
 	my($self,$nodeid,$version) = @_;
 	$self->{log}->debug("$nodeid,$version");
-	return;
+	return ($nodeid,$version);
 }
 
 sub saveValue {
 	my($self,$nodeid,$sensor,$type,$value) = @_;
 	$self->{log}->debug("$nodeid,$sensor,$type,$value");
-	return;
+	return ($nodeid,$sensor,$type,$value);
 }
 
 1;

@@ -172,7 +172,7 @@ sub _connect {
 sub saveVersion{
 	my($self,$nodeid,$version) = @_;
 	$self->{log}->debug("$nodeid,$version");
-	return;
+	return ($nodeid,$version);
 }
 
 sub saveValue {
@@ -189,7 +189,7 @@ sub saveValue {
 	my $y = $self->_auth($sens,$pass);
 	my $z = $self->_putdata($sens,$value,time());
 	print "$sens (\e[0;32m$nodeid.$sensor type $type (".MySensors::Const::SetReqToStr($type).")\e[0m) at ".time()." --- \e[0;32m$value\e[0m\n";
-	return;
+	return ($nodeid,$sensor,$type,$value);
 }
 
 1;

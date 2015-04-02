@@ -134,7 +134,7 @@ sub process{
 	#my $crap = shift @_;
 	#$self->{log}->debug("$nodeid,$version");
 	#print "Dumpalainen: ".Dumper(\@_);
-	return;
+	return ($self,$data,$nodeid,$sensor,$command,$acknowledge,$type,$payload);
 }
 
 #	$self->{log}->debug("$nodeid,$sensor,$type,$value");

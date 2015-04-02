@@ -37,6 +37,7 @@ sub register {
 sub saveBatteryLevel {
 	my($self,$nodeid,$batteryLevel) = @_;
 	$self->saveValue($nodeid,255,38,$batteryLevel);
+	return ($nodeid,$batteryLevel);
 }
 
 sub saveValue {
@@ -51,21 +52,21 @@ sub saveValue {
 	if(!-f $file) {
 		my $template = $self->{template} . "/${typestr}.rrd";
 		if(!-f $template) {
-			return;
+			return ($nodeid,$sensor,$type,$value);
 		}
 		if(!copy($template,$file)) {
 			$self->{log}->error("Can't copy $template -> $file");
-			return;
+			return ($nodeid,$sensor,$type,$value);
 		}
 	}
 	my $t = time;
 	if((RRDs::last($file) // 0) >= $t) {
-		return;
+		return ($nodeid,$sensor,$type,$value);
 	}
 	$typestr = "\L$typestr";
 	$self->{log}->debug("Update: $file ($nodeid,$sensor,$typestr\[$type\]) <- $t:$value");
 	RRDs::update($file,"--template", $typestr ,"$t:$value");
-	return;
+	return ($nodeid,$sensor,$type,$value);
 }
 
 1;
