@@ -49,11 +49,12 @@ sub register {
 
 sub call_back {
 	my($self,$method,@arg) = @_;
+	return @arg unless defined $self->{callbacks}->{$method};
 	$self->{log}->debug("call_back($method," . join(",",@arg) . ")");
-	return unless defined $self->{callbacks}->{$method};
 	foreach my $o (@{$self->{callbacks}->{$method}}) {
-		$o->$method(@arg);
+		@arg = $o->$method(@arg);
 	}
+	return @arg;
 }
 
 sub backend {
@@ -193,7 +194,7 @@ sub saveSensor {
 sub saveValue {
 	my ($self,$nodeid,$sensor,$type,$value) = @_;
 	$self->{log}->debug("NodeID: $nodeid sensor: $sensor type: $type value: $value");
-	($nodeif,$sensor,$type,$value) = $self->call_back('saveValue', $nodeid, $sensor, $type, $value);
+	($nodeid,$sensor,$type,$value) = $self->call_back('saveValue', $nodeid, $sensor, $type, $value);
 	if($self->{backend}->can("saveValue")) {
 		return $self->{backend}->saveValue($nodeid,$sensor,$type,$value);
 	}
@@ -212,7 +213,7 @@ sub saveBatteryLevel {
 sub saveSketchName {
 	my($self,$nodeid,$name) = @_;
 	$self->{log}->debug("NodeID: $nodeid name: $name");
-	($nodeif,$name) = $self->call_back('saveSketchName', $nodeid, $name);
+	($nodeid,$name) = $self->call_back('saveSketchName', $nodeid, $name);
 	if($self->{backend}->can("saveSketchName")) {
 		return $self->{backend}->saveSketchName($nodeid,$name);
 	}
