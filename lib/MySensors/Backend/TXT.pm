@@ -63,7 +63,7 @@ sub saveValue {
 
 sub getValue {
 	my ($self,$nodeid,$sensor,$type) = @_;
-	open(my $fh,"<",$self->{datadir}."${nodeid}.${sensor}.${type}.latest") || die;
+	open(my $fh,"<",$self->{datadir}."${nodeid}.${sensor}.${type}.latest") || return;
 	my($data) = <$fh>;
 	close($fh);
 	if($data =~ /^(\d+);(.*)$/) {
