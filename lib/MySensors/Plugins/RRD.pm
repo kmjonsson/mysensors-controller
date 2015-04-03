@@ -42,7 +42,7 @@ sub saveBatteryLevel {
 
 sub saveValue {
 	my($self,$nodeid,$sensor,$type,$value) = @_;
-	$self->{log}->debug("$nodeid,$sensor,$type,$value");
+	$self->{log}->debug("RRD $nodeid,$sensor,$type,$value");
 	my $file = $self->{path} . "/$nodeid-$sensor-$type.rrd";
 	my($id) = $self->{controller}->backend()->getValue($nodeid,$sensor,MySensors::Const::SetReq('VAR4'));
 	if(defined $id) {
@@ -52,10 +52,11 @@ sub saveValue {
 	if(!-f $file) {
 		my $template = $self->{template} . "/${typestr}.rrd";
 		if(!-f $template) {
+			$self->{log}->debug("ERROR Could not find $template");
 			return ($nodeid,$sensor,$type,$value);
 		}
 		if(!copy($template,$file)) {
-			$self->{log}->error("Can't copy $template -> $file");
+			$self->{log}->error("ERROR Can't copy $template -> $file");
 			return ($nodeid,$sensor,$type,$value);
 		}
 	}
@@ -64,7 +65,7 @@ sub saveValue {
 		return ($nodeid,$sensor,$type,$value);
 	}
 	$typestr = "\L$typestr";
-	$self->{log}->debug("Update: $file ($nodeid,$sensor,$typestr\[$type\]) <- $t:$value");
+	$self->{log}->debug("Update: $file ($nodeid,$sensor,$typestr\[$type\]) <- $t:$value {--template $typestr $t:$value}");
 	RRDs::update($file,"--template", $typestr ,"$t:$value");
 	return ($nodeid,$sensor,$type,$value);
 }
