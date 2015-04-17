@@ -17,8 +17,8 @@ sub new {
 
 	my $self  = {
 		# opts
-		'datadir' => $opts->{datadir} // "log", # seconds
-		'interval' => $opts->{interval} // 30, # seconds
+		'datadir' => $opts->{datadir} // "log", 
+		'interval' => $opts->{interval} // 3600, # an hour
 		'controller' => undef,
 		'log' => Log::Log4perl->get_logger(__PACKAGE__),
 		# vars
@@ -27,6 +27,7 @@ sub new {
 	bless ($self, $class);
 	$self->{datadir} .= "/" unless $self->{datadir} =~ m{/$};
 	$self->zerostats();
+	$self->zerostatslong();
 	
 	$self->{log}->info(__PACKAGE__ . " initialized");
 	return $self;
@@ -52,12 +53,102 @@ sub zerostats {
 	$self->{stats}{type} = ();
 	return;
 }
+sub zerostatslong {
+	my ($self) = @_;
+	$self->{statslong}{packets} = 0;
+	$self->{statslong}{acknowledge} = 0;
+	$self->{statslong}{route} = ();
+	$self->{statslong}{sendroute} = ();
+	$self->{statslong}{sendfail} = ();
+	$self->{statslong}{failtime} = ();
+	$self->{statslong}{node} = ();
+	$self->{statslong}{nodesensor} = ();
+	$self->{statslong}{nodesensortype} = ();
+	$self->{statslong}{type} = ();
+	return;
+}
 sub _header {
 	my ($str,$under) = @_;
 	$under //= "-";
 	return "\n".$str."\n".($under x (length($str)))."\n";
 }
 
+sub updatestatslong {
+	my ($self) = @_;
+	$self->{statslong}{packets}     += $self->{stats}{packets};
+	$self->{statslong}{acknowledge} += $self->{stats}{acknowledge};
+	for (keys $self->{stats}{route}) {
+		$self->{statslong}{route}{$_} += $self->{stats}{route}{$_};
+	}
+	for (keys $self->{stats}{sendroute}) {
+		$self->{statslong}{sendroute}{$_} += $self->{stats}{sendroute}{$_};
+	}
+	for (keys $self->{stats}{sendfail}) {
+		$self->{statslong}{sendfail}{$_} += $self->{stats}{sendfail}{$_};
+	}
+	for (keys $self->{stats}{failtime}) {
+		$self->{statslong}{failtime}{$_} += $self->{stats}{failtime}{$_};
+	}
+	for (keys $self->{stats}{node}) {
+		$self->{statslong}{node}{$_} += $self->{stats}{node}{$_};
+	}
+	for (keys $self->{stats}{nodesensor}) {
+		$self->{statslong}{nodesensor}{$_} += $self->{stats}{nodesensor}{$_};
+	}
+	for (keys $self->{stats}{nodesensortype}) {
+		$self->{statslong}{nodesensortype}{$_} += $self->{stats}{nodesensortype}{$_};
+	}
+	for (keys $self->{stats}{type}) {
+		$self->{statslong}{type}{$_} += $self->{stats}{type}{$_};
+	}
+	return;
+}
+
+sub dumpstats{
+	my($self,$type,$hash,$filename) = @_;
+	open(my $fh, ">>", $self->{datadir}.$filename) || croak "Unable to open ".$self->{datadir}.$filename;
+#print $fh _header("Raw dump (debug mode)");
+#print $fh Dumper($self->{stats});
+
+	print $fh _header(strftime("Statistics [$type] at %Y%m%d-%H%M%S:",localtime(time())),"=");
+	print $fh _header("Incoming packets (from-via-to):");
+	for my $key (sort keys %{$hash->{route}}) {
+	    printf $fh "%s %s\n",$key,$hash->{route}{$key};
+	}
+
+	print $fh _header("Outgoing packets (from-via-next-to):");
+	for my $key (sort keys %{$hash->{sendroute}}) {
+	    printf $fh "%s %s\n",$key,$hash->{sendroute}{$key};
+	}
+
+	print $fh _header("Failed outgoing packets:");
+	for my $key (sort keys %{$hash->{sendfail}}) {
+	    printf $fh "%s %s\n",$key,$hash->{sendfail}{$key};
+	}
+
+	print $fh _header("Failed times:");
+	for my $key (sort keys %{$hash->{failtime}}) {
+	    printf $fh "%s %s\n",$key,$hash->{failtime}{$key};
+	}
+
+	print $fh _header("Nodecombo:");
+	for my $key (sort keys %{$hash->{nodesensor}}) {
+	    printf $fh "%s %s\n",$key,$hash->{nodesensor}{$key};
+# TODO datatyp oxo?
+	}
+
+	print $fh _header("Nodecombo+type:");
+	for my $key (sort keys %{$hash->{nodesensortype}}) {
+	    printf $fh "%s %s\n",$key,$hash->{nodesensortype}{$key};
+	}
+
+	print $fh _header("Types:");
+	for my $key (sort keys %{$hash->{type}}) {
+	    printf $fh "%s(%s) %s\n",MySensors::Const::SetReqToStr($key),$key,$hash->{type}{$key};
+	}
+	close($fh);
+	return;
+}
 sub process{
 	my($self,$data,$nodeid,$sensor,$command,$acknowledge,$type,$payload) = @_;
 	$self->{stats}{packets}++;
@@ -87,49 +178,13 @@ sub process{
 		$self->{log}->debug("Dumping statistics");
 		#print "Time to dump!\n";
 		$self->{lastdump} = time();
-		my $filename = strftime("stats.%Y%m%d",localtime(time()));
-		open(my $fh, ">>", $self->{datadir}.$filename) || croak "Unable to open ".$self->{datadir}.$filename;
-		print $fh _header("Raw dump (debug mode)");
-		print $fh Dumper($self->{stats});
+		my $filename = strftime("stats-short.%Y%m%d",localtime(time()));
+		$self->dumpstats("short",$self->{stats},$filename);
+		$self->updatestatslong();
+		$filename = strftime("stats-long.%Y%m%d",localtime(time()));
+		$self->dumpstats("long",$self->{statslong},$filename);
 
-		print $fh _header(strftime("Statistics at %Y%m%d-%H%M%S:",localtime(time())),"=");
-		print $fh _header("Incoming packets (from-via-to):");
-		for my $key (sort keys %{$self->{stats}{route}}) {
-			printf $fh "%s %s\n",$key,$self->{stats}{route}{$key};
-		}
-
-		print $fh _header("Outgoing packets (from-via-next-to):");
-		for my $key (sort keys %{$self->{stats}{sendroute}}) {
-			printf $fh "%s %s\n",$key,$self->{stats}{sendroute}{$key};
-		}
-
-		print $fh _header("Failed outgoing packets:");
-		for my $key (sort keys %{$self->{stats}{sendfail}}) {
-			printf $fh "%s %s\n",$key,$self->{stats}{sendfail}{$key};
-		}
-		
-		print $fh _header("Failed times:");
-		for my $key (sort keys %{$self->{stats}{failtime}}) {
-			printf $fh "%s %s\n",$key,$self->{stats}{failtime}{$key};
-		}
-		
-		print $fh _header("Nodecombo:");
-		for my $key (sort keys %{$self->{stats}{nodesensor}}) {
-			printf $fh "%s %s\n",$key,$self->{stats}{nodesensor}{$key};
-			# TODO datatyp oxo?
-		}
-		
-		print $fh _header("Nodecombo+type:");
-		for my $key (sort keys %{$self->{stats}{nodesensortype}}) {
-			printf $fh "%s %s\n",$key,$self->{stats}{nodesensortype}{$key};
-		}
-		
-		print $fh _header("Types:");
-		for my $key (sort keys %{$self->{stats}{type}}) {
-			printf $fh "%s(%s) %s\n",MySensors::Const::SetReqToStr($key),$key,$self->{stats}{type}{$key};
-		}
-		close($fh);
-		
+		$self->zerostats(); # zap the short term, keep long
 	}
 	#my $crap = shift @_;
 	#$self->{log}->debug("$nodeid,$version");
