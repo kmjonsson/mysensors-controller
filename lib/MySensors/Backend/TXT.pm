@@ -22,6 +22,11 @@ sub new {
 	return $self;
 }
 
+sub clone {
+	my($self) = @_;
+	return $self;
+}
+
 sub saveProtocol {
 	my($self,$nodeid,$protocol) = @_;
 	open(my $fh,">",$self->{datadir}."${nodeid}.version") || die;

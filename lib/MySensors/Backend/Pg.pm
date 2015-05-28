@@ -15,14 +15,27 @@ sub new {
 	my $self  = {
 		'dsn' => $opts->{'dsn'} // "",
 		'user' => $opts->{'user'} // "",
+		'password' => $opts->{'password'} // "",
 		'log' => Log::Log4perl->get_logger(__PACKAGE__),
 	};
 	bless ($self, $class);
+	$self->_init($opts);
+	$self->{log}->debug("Pg Backend initialized");
+	return $self;
+}
+
+sub _init {
+	my($self,$opts) = @_;
 	$self->{dbh} = DBI->connect($self->{dsn}, $self->{user}, $opts->{password} // "", 
 			{ RaiseError => 1, 'pg_enable_utf8' => 1 });
 	$self->{dbh}->do("SET CLIENT_ENCODING='UTF8';");
-	$self->{log}->debug("Pg Backend initialized");
-	return $self;
+}
+
+sub clone {
+	my($self) = @_;
+	my $clone = MySensors::Backend::Pg->new({password => $self->{password}, dsn => $self->{dsn}, user => $self->{user}});
+	$clone->{log}->debug("Pg Backend cloned");
+	return $clone;
 }
 
 sub _query {
@@ -50,6 +63,12 @@ sub _call {
 	return @{$result->[0]};
 }
 
+sub getConfig {
+	my($self) = @_;
+	return {
+	};
+}
+
 sub saveProtocol {
 	my($self,$nodeid,$protocol) = @_;
 	return $self->_call('save_protocol(?::integer,?::text)',$nodeid,$protocol);
@@ -72,7 +91,8 @@ sub saveValue {
 
 sub getValue {
 	my ($self,$nodeid,$sensor,$type) = @_;
-	return $self->_call('get_value(?::integer,?::integer,?::integer)',$nodeid,$sensor,$type);
+	my(@res) = $self->_call('get_value(?::integer,?::integer,?::integer)',$nodeid,$sensor,$type);
+	return @res;
 }
 
 sub saveBatteryLevel {

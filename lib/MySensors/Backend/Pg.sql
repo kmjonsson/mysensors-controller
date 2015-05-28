@@ -262,7 +262,7 @@ BEGIN
 	IF var_value IS NULL THEN
 		PERFORM save_sensor(in_node,255,255);
 	END IF;
-	SELECT save_value(in_node,255,10002,in_value::text) INTO var_res;
+	SELECT save_value(in_node,255,10002,in_version::text) INTO var_res;
 	RETURN var_res;
 END;
 $save_sketch_version$

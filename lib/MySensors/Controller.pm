@@ -7,6 +7,7 @@ use warnings;
 use Thread::Queue;
 
 use MySensors::Const;
+use MySensors::Config;
 
 sub new {
 	my($class) = shift;
@@ -36,6 +37,7 @@ sub new {
 		$self->{lastMsg}->{$id} = time;
 		return unless $r->init($self,$id++);
 	}
+	$self->{myconfig} = MySensors::Config->new({controller => $self});
 	$self->{log}->info("Controller initialized");
 	return $self;
 }
@@ -60,6 +62,13 @@ sub call_back {
 sub backend {
 	my($self) = @_;
 	return $self->{backend};
+}
+
+# Send an updated config to plugins that needs the config.
+sub updatedConfig {
+	my($self,$config) = @_;
+	$self->call_back('updatedConfig',$config);
+	return $self;
 }
 
 # Send #
@@ -276,6 +285,8 @@ sub run {
 			if($msg->{type} eq 'PACKET') {
 				$self->process($msg);
 			}
+			# Check for config changes
+			$self->{myconfig}->check();
 		}
 	} else {
 		my $t = $timeout;
@@ -292,6 +303,8 @@ sub run {
 				$self->process($msg);
 			}
 			$t = $timeout;
+			# Check for config changes
+			$self->{myconfig}->check();
 		}
 	}
 }
