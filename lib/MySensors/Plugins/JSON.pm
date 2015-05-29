@@ -67,10 +67,8 @@ sub handle_request {
 	my($self,$cgi) = @_;
 	my $pi = $cgi->path_info();
 
-	if($pi eq '/get') {
-		my $node   = $cgi->param('node');
-		my $sensor = $cgi->param('sensor');
-		my $type   = $cgi->param('type');
+	if($pi =~ m,^/get/(\d+)/(\d+)/(\d+)(|.json)$,) {
+		my($node,$sensor,$type) = ($1,$2,$3);
 		my($v) = $self->{_backend}->getValue($node,$sensor,$type);
 		print "HTTP/1.0 200 OK\r\n";
 		print "Content-type: application/json\r\n\r\n";

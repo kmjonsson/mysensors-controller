@@ -43,7 +43,9 @@ sub sendSignal {
 # check for a signal..
 sub check {
 	my($self) = @_;
-	while (defined(my $msg = $self->{inqueue}->dequeue())) {
+	while($self->{inqueue}->pending()) {
+		my $msg = $self->{inqueue}->dequeue();
+		next unless defined $msg;
 		if($msg->{type} eq 'UPDATE') {
 			$self->reload();
 		}
