@@ -149,6 +149,13 @@ sub dumpstats{
 	close($fh);
 	return;
 }
+sub lastseen {
+	my ($self,$nodeid,$how) = @_;
+	open(my $fh,">",$self->{datadir}."${nodeid}.lastseen") || die;
+	printf $fh "%d;%s\n",time,$how;
+	close($fh);
+	return;
+}
 sub process{
 	my($self,$data,$nodeid,$sensor,$command,$acknowledge,$type,$payload) = @_;
 	$self->{stats}{packets}++;
@@ -157,6 +164,9 @@ sub process{
 	}
 	if ($command == MySensors::Const::MessageType('INTERNAL')) {
 		if ($type == MySensors::Const::Internal('LOG_MESSAGE')) {
+			if ($payload =~ /read: \d+-(\d+)-\d+/) {
+				$self->lastseen($1,"packetrouter");
+			}
 			if ($payload =~ /read: (\d+-\d+-\d+)/) {
 				$self->{stats}{route}{$1}++;
 			}
