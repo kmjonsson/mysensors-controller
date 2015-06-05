@@ -4,7 +4,7 @@ package MySensors::Radio::TCP;
 use strict;
 use warnings;
 
-use Thread;
+use threads;
 use Thread::Queue;
 
 use IO::Socket::INET;
@@ -54,10 +54,10 @@ sub restart {
 	if(defined $self->{'socket'}) {
 		$self->{'socket'}->close();
 	}
-	if(defined $self->{'sendthr'} && $self->{'sendthr'}->done()) {
+	if(defined $self->{'sendthr'} && $self->{'sendthr'}->is_joinable()) {
 		$self->{'sendthr'}->join();
 	}
-	if(defined $self->{'recvthr'} && $self->{'recvthr'}->done()) {
+	if(defined $self->{'recvthr'} && $self->{'recvthr'}->is_joinable()) {
 		$self->{'recvthr'}->join();
 	}
 	if(defined $self->{inqueue}) {
@@ -92,11 +92,11 @@ sub start {
 	}
 
 	# Start receive thread
-	$self->{'recvthr'} = Thread->new(
+	$self->{'recvthr'} = threads->create(
 		 sub { $self->receive_thr(); }
 	);
 	# Start send thread
-	$self->{'sendthr'} = Thread->new(
+	$self->{'sendthr'} = threads->create(
 		 sub { $self->send_thr(); }
 	);
 	$self->{log}->error("Connected");
@@ -108,12 +108,12 @@ sub status {
 	return 1 unless defined $self->{'sendthr'};
 	return 1 unless defined $self->{'recvthr'};
 	my $status = 0;
-	if($self->{'sendthr'}->done()) {
+	if($self->{'sendthr'}->is_joinable()) {
 		$self->{'sendthr'}->join();
 		$self->{'sendthr'} = undef;
 		$status = 1;
 	}
-	if($self->{'recvthr'}->done()) {
+	if($self->{'recvthr'}->is_joinable()) {
 		$self->{'recvthr'}->join();
 		$self->{'recvthr'} = undef;
 		$status = 1;
@@ -140,7 +140,7 @@ sub send_thr {
 	my($self) = @_;
 	while (defined(my $msg = $self->{inqueue}->dequeue())) {
 		last if $msg->{type} eq 'SHUTDOWN';
-		if($msg->{type} eq 'PACKET') {
+		if($msg->{type} eq 'RADIO') {
 			my $data = $msg->{data};
 			my $size = $self->{socket}->send("$data\n");
 			if($size != length("$data\n")) {
@@ -191,7 +191,7 @@ sub receive_thr {
 			$msg .= $response;
 		}
 		for ( grep { length > 8 && !/^#/ } @msgs ) { 
-			$self->{'controller'}->receive({ type => "PACKET", data => $_ }); 
+			$self->{'controller'}->receive({ type => "RADIO", data => $_ }); 
 		}
 	}
 	$self->{'socket'}->close();

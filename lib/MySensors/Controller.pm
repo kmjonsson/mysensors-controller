@@ -7,7 +7,6 @@ use warnings;
 use Thread::Queue;
 
 use MySensors::Const;
-use MySensors::Config;
 
 sub new {
 	my($class) = shift;
@@ -27,17 +26,17 @@ sub new {
 		'inqueue' => Thread::Queue->new(),
 	};
 	bless ($self, $class);
-	if(defined $self->{'plugins'}) {
-		foreach my $p (@{$self->{plugins}}) {
-			$p->register($self);
-		}
-	}
+	return unless $self->{backend}->init($self);
 	my $id = 0;
 	foreach my $r (@{$self->{radio}}) {
 		$self->{lastMsg}->{$id} = time;
 		return unless $r->init($self,$id++);
 	}
-	$self->{myconfig} = MySensors::Config->new({controller => $self});
+	if(defined $self->{'plugins'}) {
+		foreach my $p (@{$self->{plugins}}) {
+			$p->register($self);
+		}
+	}
 	$self->{log}->info("Controller initialized");
 	return $self;
 }
@@ -66,8 +65,8 @@ sub backend {
 
 # Send an updated config to plugins that needs the config.
 sub updatedConfig {
-	my($self,$config) = @_;
-	$self->call_back('updatedConfig',$config);
+	my($self,$msg) = @_;
+	$self->call_back('updatedConfig');
 	return $self;
 }
 
@@ -96,7 +95,7 @@ sub send {
 	foreach my $r (@{$self->{radio}}) {
 		next if defined $self->{route}->{$destination} && $_->id() != $self->{route}->{$destination};
 		$self->{log}->debug("Sending via " . $r->id());
-		my $ret = $r->send({ type => 'PACKET', data => $td });
+		my $ret = $r->send({ type => 'RADIO', data => $td });
 		if(!defined $ret) {
 			$self->{log}->warn("Failed to write message via " . $r->id());
 			return;
@@ -276,17 +275,25 @@ sub receive {
 	$self->{inqueue}->enqueue($msg);
 }
 
+sub handle_msg {
+	my($self,$msg) = @_;
+	return 1 if !defined $msg or !defined $msg->{type};
+
+	return 1 if $msg->{type} eq 'SHUTDOWN';
+	return $self->process($msg) if $msg->{type} eq 'RADIO';
+	return $self->updatedConfig($msg) if $msg->{type} eq 'CONFIG';
+
+	$self->{log}->error("unknown message type: " . $msg->{type});
+	return 1;
+}
+
 sub run {
 	my($self,$timeout) = @_;
 	if($self->{inqueue}->can("dequeue_timed")) {
 		while (defined(my $msg = $self->{inqueue}->dequeue_timed($timeout))) {
-			last if !defined $msg;
-			last if $msg->{type} eq 'SHUTDOWN';
-			if($msg->{type} eq 'PACKET') {
-				$self->process($msg);
-			}
-			# Check for config changes
-			$self->{myconfig}->check();
+			my $r = $self->handle_msg($msg);
+			last if !defined $r;
+			last if $r == 1;
 		}
 	} else {
 		my $t = $timeout;
@@ -297,14 +304,9 @@ sub run {
 				next;
 			}
 			my $msg = $self->{inqueue}->dequeue_nb();
-			last if !defined $msg;
-			last if $msg->{type} eq 'SHUTDOWN';
-			if($msg->{type} eq 'PACKET') {
-				$self->process($msg);
-			}
-			$t = $timeout;
-			# Check for config changes
-			$self->{myconfig}->check();
+			my $r = $self->handle_msg($msg);
+			last if !defined $r;
+			last if $r == 1;
 		}
 	}
 }

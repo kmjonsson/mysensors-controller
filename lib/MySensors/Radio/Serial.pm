@@ -4,7 +4,7 @@ package MySensors::Radio::Serial;
 use strict;
 use warnings;
 
-use Thread;
+use threads;
 use Thread::Queue;
 
 use Device::SerialPort qw( :PARAM :STAT 0.07 );
@@ -56,10 +56,10 @@ sub restart {
 	if(defined $self->{'serial'}) {
 		$self->{'serial'}->close();
 	}
-	if(defined $self->{'sendthr'} && $self->{'sendthr'}->done()) {
+	if(defined $self->{'sendthr'} && $self->{'sendthr'}->is_joinable()) {
 		$self->{'sendthr'}->join();
 	}
-	if(defined $self->{'recvthr'} && $self->{'recvthr'}->done()) {
+	if(defined $self->{'recvthr'} && $self->{'recvthr'}->is_joinable()) {
 		$self->{'recvthr'}->join();
 	}
 	if(defined $self->{inqueue}) {
@@ -93,11 +93,11 @@ sub start {
 	$self->{inqueue} = Thread::Queue->new();
 
 	# Start receive thread
-	$self->{'recvthr'} = Thread->new(
+	$self->{'recvthr'} = threads->create(
 		 sub { $self->receive_thr(); }
 	);
 	# Start send thread
-	$self->{'sendthr'} = Thread->new(
+	$self->{'sendthr'} = threads->create(
 		 sub { $self->send_thr(); }
 	);
 	$self->{log}->error("Connected");
@@ -109,12 +109,12 @@ sub status {
 	return 1 unless defined $self->{'sendthr'};
 	return 1 unless defined $self->{'recvthr'};
 	my $status = 0;
-	if($self->{'sendthr'}->done()) {
+	if($self->{'sendthr'}->is_joinable()) {
 		$self->{'sendthr'}->join();
 		$self->{'sendthr'} = undef;
 		$status = 1;
 	}
-	if($self->{'recvthr'}->done()) {
+	if($self->{'recvthr'}->is_joinable()) {
 		$self->{'recvthr'}->join();
 		$self->{'recvthr'} = undef;
 		$status = 1;
@@ -141,7 +141,7 @@ sub send_thr {
 	my($self) = @_;
 	while (defined(my $msg = $self->{inqueue}->dequeue())) {
 		last if $msg->{type} eq 'SHUTDOWN';
-		if($msg->{type} eq 'PACKET') {
+		if($msg->{type} eq 'RADIO') {
 			my $data = $msg->{data};
 			$self->{log}->info("Sending: $data");
 			my $size = $self->{serial}->write("$data\n");
@@ -201,7 +201,7 @@ sub receive_thr {
 		for ( grep { length > 8 && !/^#/ } @msgs ) { 
 			#next if /^0;0;/;
 			$self->{log}->info("received: '$_'");
-			$self->{'controller'}->receive({ type => "PACKET", data => $_ }); 
+			$self->{'controller'}->receive({ type => "RADIO", data => $_ }); 
 		}
 	}
 	$self->{'serial'}->close();

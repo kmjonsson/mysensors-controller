@@ -36,6 +36,8 @@ sub run {
 	my($self) = @_;
 	return unless defined $self->{'controller'};
 
+	sleep(1);
+
 	$self->{controller}->sendVersionCheck();
 
 	# receive a response of up to 1024 characters from server
