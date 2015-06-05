@@ -37,6 +37,7 @@ sub register {
 	$self->{controller} = $controller;
 	$controller->register('saveValue',$self);
 	$controller->register('saveVersion',$self);
+	$controller->register('saveBatteryLevel',$self);
 	return;
 }
 sub _sensorid {
@@ -190,6 +191,20 @@ sub saveValue {
 	my $z = $self->_putdata($sens,$value,time());
 	print "$sens (\e[0;32m$nodeid.$sensor type $type (".MySensors::Const::SetReqToStr($type).")\e[0m) at ".time()." --- \e[0;32m$value\e[0m\n";
 	return ($nodeid,$sensor,$type,$value);
+}
+sub saveBatteryLevel {
+	my ($self,$nodeid,$level) = @_;
+	my $sensor = 0xBA; # ahem. batteri.
+	$self->{log}->debug("$nodeid,batt=$level");
+	if (!$self->{socket}) {
+		$self->_connect();
+	}
+	my $sens = $self->_sensorid($nodeid,$sensor); # ahem. id=0xBA == batteri.. ish.
+	my $pass = $self->_getpwd($sens);
+	my $y = $self->_auth($sens,$pass);
+	my $z = $self->_putdata($sens,$level,time());
+	print "$sens (\e[0;32m$nodeid.$sensor battery at ".time()." --- \e[0;32m$level\e[0m\n";
+	return ($nodeid,$level);
 }
 
 1;

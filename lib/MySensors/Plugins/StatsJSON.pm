@@ -2,7 +2,7 @@
 # Example Plugin Example
 #
 
-package MySensors::Plugins::Stats;
+package MySensors::Plugins::StatsJSON;
 
 use strict;
 use warnings;
@@ -17,19 +17,20 @@ sub new {
 
 	my $self  = {
 		# opts
-		'datadir' => $opts->{datadir} // "log", 
-		'interval' => $opts->{interval} // 3600, # an hour
+		'datadir' => $opts->{datadir} // ".", 
+		'aggregateby' => $opts->{aggregateby} // "%Y%m%d-%H",
+		#'interval' => $opts->{interval} // 3600, # an hour
 		'controller' => undef,
 		'log' => Log::Log4perl->get_logger(__PACKAGE__),
 		# vars
-		'lastdump' => time(),
 	};
+	$self->{lastaggregate} = strftime($self->{aggregateby},localtime(time())),
 	bless ($self, $class);
 	$self->{datadir} .= "/" unless $self->{datadir} =~ m{/$};
 	$self->zerostats();
-	$self->zerostatslong();
+	#$self->zerostatslong();
 	
-	$self->{log}->info(__PACKAGE__ . " initialized");
+	#$self->{log}->info(__PACKAGE__ . " initialized");
 	return $self;
 }
 
@@ -53,20 +54,21 @@ sub zerostats {
 	$self->{stats}{type} = ();
 	return;
 }
-sub zerostatslong {
-	my ($self) = @_;
-	$self->{statslong}{packets} = 0;
-	$self->{statslong}{acknowledge} = 0;
-	$self->{statslong}{route} = ();
-	$self->{statslong}{sendroute} = ();
-	$self->{statslong}{sendfail} = ();
-	$self->{statslong}{failtime} = ();
-	$self->{statslong}{node} = ();
-	$self->{statslong}{nodesensor} = ();
-	$self->{statslong}{nodesensortype} = ();
-	$self->{statslong}{type} = ();
-	return;
-}
+#sub zerostatslong {
+#	my ($self) = @_;
+#	$self->{statslong}{packets} = 0;
+#	$self->{statslong}{acknowledge} = 0;
+#	$self->{statslong}{route} = ();
+#	$self->{statslong}{sendroute} = ();
+#	$self->{statslong}{sendfail} = ();
+#	$self->{statslong}{failtime} = ();
+#	$self->{statslong}{node} = ();
+#	$self->{statslong}{nodesensor} = ();
+#	$self->{statslong}{nodesensortype} = ();
+#	$self->{statslong}{type} = ();
+#	return;
+#}
+=begin comment
 sub _header {
 	my ($str,$under) = @_;
 	$under //= "-";
@@ -103,13 +105,71 @@ sub updatestatslong {
 	}
 	return;
 }
+=end comment
+=cut
+
+sub hash2json {
+	my ($indent,$name,$keyname,$valname,$hash,$transformfunc) = @_;
+	my $str = "";
+	
+	$str .= "\t" x $indent . qq/"$name":[\n/;
+	$indent++;
+	for my $key (sort keys %{$hash}) {
+		my $mykey = $key;
+		if (defined $transformfunc) {
+			$mykey = $transformfunc->($key);
+		}
+		$str .= "\t" x $indent . qq/{"$keyname":"$mykey","$valname":$hash->{$key}},\n/;
+	}
+	chomp($str); # newline begone
+	my $x = chop($str);  # , begone
+	if ($x ne ',') {
+		$str .= $x;
+	}
+	$str .= "\n";
+	$indent--;
+	$str .= "\t" x $indent . qq/]/;
+	return $str;
+}
 
 sub dumpstats{
-	my($self,$type,$hash,$filename) = @_;
+	my($self,$hash,$aggregate,$aggregateby,$filename) = @_;
+	#print "Dumping to $filename\n";
 	open(my $fh, ">>", $self->{datadir}.$filename) || croak "Unable to open ".$self->{datadir}.$filename;
 #print $fh _header("Raw dump (debug mode)");
-#print $fh Dumper($self->{stats});
+#print Dumper($hash);
+	print  $fh qq/{\n/;
+	printf $fh qq/\t"aggregate":"%s",\n/,$aggregate;
+	printf $fh qq/\t"aggregateby":"%s",\n/,$aggregateby;
+	printf $fh qq/\t"packets":%s,\n/,$hash->{packets};
+	printf $fh qq/\t"acknowledge":%s,\n/,$hash->{acknowledge};
+	print  $fh qq/\t"data":{\n/;
+	my $indent = 2;
+	print $fh hash2json($indent, "route","from","num",$hash->{route});
+	print $fh ",\n";
+	print $fh hash2json($indent, "sendroute","to","num",$hash->{sendroute});
+	print $fh ",\n";
+	print $fh hash2json($indent, "sendfail","to","num",$hash->{sendfail});
+	print $fh ",\n";
+	print $fh hash2json($indent, "failtime","time","num",$hash->{failtime});
+	print $fh ",\n";
+	print $fh hash2json($indent, "node","combo","num",$hash->{node});
+	print $fh ",\n";
+	print $fh hash2json($indent, "nodesensor","combo","num",$hash->{nodesensor});
+	print $fh ",\n";
+	print $fh hash2json($indent, "nodesensortype","combo","num",$hash->{nodesensortype});
+	print $fh ",\n";
+	print $fh hash2json($indent, "type","type","num",$hash->{type},
+			    sub {
+				    my $x = shift;
+				    return MySensors::Const::SetReqToStr($x)."($x)";
+			    }
+		    );
+	print $fh "\n";
+	print $fh "\t}\n";
+	print $fh "}\n";
 
+=begin comment
 	print $fh _header(strftime("Statistics [$type] at %Y%m%d-%H%M%S:",localtime(time())),"=");
 	print $fh _header("Incoming packets (from-via-to):");
 	for my $key (sort keys %{$hash->{route}}) {
@@ -146,6 +206,8 @@ sub dumpstats{
 	for my $key (sort keys %{$hash->{type}}) {
 	    printf $fh "%s(%s) %s\n",MySensors::Const::SetReqToStr($key),$key,$hash->{type}{$key};
 	}
+=end comment
+=cut
 	close($fh);
 	return;
 }
@@ -158,6 +220,14 @@ sub lastseen {
 }
 sub process{
 	my($self,$data,$nodeid,$sensor,$command,$acknowledge,$type,$payload) = @_;
+
+	my $curraggregate = strftime($self->{aggregateby},localtime(time()));
+	if ($curraggregate ne $self->{lastaggregate}) {
+		my $filename = "stats.$self->{lastaggregate}.json";
+		$self->dumpstats($self->{stats},$self->{lastaggregate},$self->{aggregateby},$filename);
+		$self->zerostats();
+		$self->{lastaggregate} = $curraggregate;
+	}
 	$self->{stats}{packets}++;
 	if ($acknowledge) {
 		$self->{stats}{acknowledge}++;
@@ -184,18 +254,18 @@ sub process{
 		$self->{stats}{nodesensortype}{$nodeid."-".$sensor."-".$type}++;
 		$self->{stats}{type}{$type}++;
 	}
-	if (time() > $self->{lastdump} + $self->{interval}) {
-		$self->{log}->debug("Dumping statistics");
-		#print "Time to dump!\n";
-		$self->{lastdump} = time();
-		my $filename = strftime("stats-short.%Y%m%d",localtime(time()));
-		$self->dumpstats("short",$self->{stats},$filename);
-		$self->updatestatslong();
-		$filename = strftime("stats-long.%Y%m%d",localtime(time()));
-		$self->dumpstats("long",$self->{statslong},$filename);
-
-		$self->zerostats(); # zap the short term, keep long
-	}
+#	if (time() > $self->{lastdump} + $self->{interval}) {
+#		$self->{log}->debug("Dumping statistics");
+#		#print "Time to dump!\n";
+#		$self->{lastdump} = time();
+#		my $filename = strftime("stats-short.%Y%m%d",localtime(time()));
+#		$self->dumpstats("short",$self->{stats},$filename);
+#		$self->updatestatslong();
+#		$filename = strftime("stats-long.%Y%m%d",localtime(time()));
+#		$self->dumpstats("long",$self->{statslong},$filename);
+#
+#		$self->zerostats(); # zap the short term, keep long
+#	}
 	#my $crap = shift @_;
 	#$self->{log}->debug("$nodeid,$version");
 	#print "Dumpalainen: ".Dumper(\@_);

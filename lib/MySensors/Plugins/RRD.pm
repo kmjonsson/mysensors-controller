@@ -46,6 +46,7 @@ sub saveValue {
 	my $file = $self->{path} . "/$nodeid-$sensor-$type.rrd";
 	my($id) = $self->{controller}->backend()->getValue($nodeid,$sensor,MySensors::Const::SetReq('VAR4'));
 	if(defined $id) {
+		$self->{log}->debug("Resolved $nodeid-$sensor to $id from its VAR4 (".MySensors::Const::SetReq('VAR4').")");
 		$file = $self->{path} . "/$id.rrd";
 	}
 	my $typestr = MySensors::Const::SetReqToStr($type);

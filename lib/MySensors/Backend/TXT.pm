@@ -32,7 +32,7 @@ sub saveProtocol {
 	open(my $fh,">",$self->{datadir}."${nodeid}.version") || die;
 	print $fh $protocol;
 	close($fh);
-	$self->lastseen($nodeid);
+	$self->lastseen($nodeid,"version");
 	return;
 }
 
@@ -41,7 +41,7 @@ sub saveSensor {
 	open(my $fh,">",$self->{datadir}."${nodeid}.${sensor}.type") || die;
 	print $fh $type;
 	close($fh);
-	$self->lastseen($nodeid);
+	$self->lastseen($nodeid,"sensortype");
 	return;
 }
 
@@ -56,9 +56,9 @@ sub getNextAvailableNodeId {
 	return;
 }
 sub lastseen {
-	my ($self,$nodeid) = @_;
+	my ($self,$nodeid,$how) = @_;
 	open(my $fh,">",$self->{datadir}."${nodeid}.lastseen") || die;
-	printf $fh "%d\n",time;
+	printf $fh "%d;%s\n",time,$how;
 	close($fh);
 	return;
 }
@@ -72,7 +72,7 @@ sub saveValue {
 	open($fh,">",$self->{datadir}."${nodeid}.${sensor}.${type}.latest") || die;
 	printf $fh "%d;%s\n",time,$value;
 	close($fh);
-	$self->lastseen($nodeid);
+	$self->lastseen($nodeid,"sensor");
 	return;
 }
 
@@ -93,7 +93,7 @@ sub saveSketchName {
 	open(my $fh,">",$self->{datadir}."${nodeid}.sketchname") || die;
 	print $fh $name;
 	close($fh);
-	$self->lastseen($nodeid);
+	$self->lastseen($nodeid,"sketchname");
 	return;
 }
 
@@ -102,7 +102,7 @@ sub saveSketchVersion {
 	open(my $fh,">",$self->{datadir}."${nodeid}.sketchversion") || die;
 	print $fh $version;
 	close($fh);
-	$self->lastseen($nodeid);
+	$self->lastseen($nodeid,"sketchversion");
 	return;
 }
 sub saveBatteryLevel {
@@ -114,7 +114,7 @@ sub saveBatteryLevel {
 	open($fh,">",$self->{datadir}."${nodeid}.batterylevel.latest") || die;
 	printf $fh "%d;%s\n",time,$level;
 	close($fh);
-	$self->lastseen($nodeid);
+	$self->lastseen($nodeid,"batterylevel");
 	return;
 }
 sub saveVersion {
@@ -122,8 +122,13 @@ sub saveVersion {
 	open(my $fh,">",$self->{datadir}."${nodeid}.fooversion") || die;
 	print $fh $version;
 	close($fh);
-	$self->lastseen($nodeid);
+	$self->lastseen($nodeid,"fooversion");
 	return;
+}
+sub getConfig {
+	my($self) = @_;
+	return {
+	};
 }
 
 1;

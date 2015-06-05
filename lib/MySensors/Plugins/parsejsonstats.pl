@@ -1,43 +1,39 @@
-#
-# Example Plugin Example
-#
-
-package MySensors::Plugins::Stats;
+#!/usr/bin/perl
 
 use strict;
 use warnings;
 use Carp;
 use Data::Dumper;
 use POSIX;
+use JSON::PP;
+
+my $what = shift;
+my @files = @ARGV;
+my $json = JSON::PP->new->ascii->pretty->allow_nonref;
+my $data;
+
 
 $Data::Dumper::Sortkeys = 1;
 
-sub new {
-	my($class,$opts) = @_;
+#print Dumper($what);
+#print Dumper(\@files);
 
-	my $self  = {
-		# opts
-		'datadir' => $opts->{datadir} // "log", 
-		'interval' => $opts->{interval} // 3600, # an hour
-		'controller' => undef,
-		'log' => Log::Log4perl->get_logger(__PACKAGE__),
-		# vars
-		'lastdump' => time(),
-	};
-	bless ($self, $class);
-	$self->{datadir} .= "/" unless $self->{datadir} =~ m{/$};
-	$self->zerostats();
-	$self->zerostatslong();
-	
-	$self->{log}->info(__PACKAGE__ . " initialized");
-	return $self;
+zerostatslong($data);
+for my $file (@files) {
+	$data->{stats} = parsejson($file);
+	#print Dumper($data);
+	updatestatslong($data);
+	zerostats($data);
 }
-
-sub register {
-	my($self,$controller) = @_;
-	$self->{controller} = $controller;
-	$controller->register('process',$self);
-	return;
+if ($what eq "all") {
+    print Dumper($data->{statslong});
+} else {
+	#print $data->{statslong}{packets} if ($what eq "packets");
+	#print $data->{statslong}{acknowledge} if ($what eq "acknowledge");
+	if (defined $data->{statslong}{$what}) {
+		print "$what\n";
+		print Dumper($data->{statslong}{$what});
+	}
 }
 sub zerostats {
 	my ($self) = @_;
@@ -67,6 +63,15 @@ sub zerostatslong {
 	$self->{statslong}{type} = ();
 	return;
 }
+
+sub parsejson {
+	my ($file) = shift;
+	open(my $fh, "<", $file) || die;
+	my $x = join("",<$fh>);
+	close($fh);
+	my $perlvar = $json->decode($x);
+	return $perlvar;
+}
 sub _header {
 	my ($str,$under) = @_;
 	$under //= "-";
@@ -77,29 +82,30 @@ sub updatestatslong {
 	my ($self) = @_;
 	$self->{statslong}{packets}     += $self->{stats}{packets};
 	$self->{statslong}{acknowledge} += $self->{stats}{acknowledge};
-	for (keys $self->{stats}{route}) {
-		$self->{statslong}{route}{$_} += $self->{stats}{route}{$_};
+	my $n;
+	for $n (@{$self->{stats}{data}{route}}) {
+		$self->{statslong}{route}{ $n->{from} } += $n->{num};
 	}
-	for (keys $self->{stats}{sendroute}) {
-		$self->{statslong}{sendroute}{$_} += $self->{stats}{sendroute}{$_};
+	for $n (@{ $self->{stats}{data}{sendroute}}) {
+		$self->{statslong}{sendroute}{ $n->{to} } += $n->{num}
 	}
-	for (keys $self->{stats}{sendfail}) {
-		$self->{statslong}{sendfail}{$_} += $self->{stats}{sendfail}{$_};
+	for $n (@{ $self->{stats}{data}{sendfail}}) {
+		$self->{statslong}{sendfail}{ $n->{to} } += $n->{num}
 	}
-	for (keys $self->{stats}{failtime}) {
-		$self->{statslong}{failtime}{$_} += $self->{stats}{failtime}{$_};
+	for $n (@{ $self->{stats}{data}{failtime}}) {
+		$self->{statslong}{failtime}{ $n->{time} } += $n->{num}
 	}
-	for (keys $self->{stats}{node}) {
-		$self->{statslong}{node}{$_} += $self->{stats}{node}{$_};
+	for $n (@{ $self->{stats}{data}{node}}) {
+		$self->{statslong}{node}{ $n->{combo} } += $n->{num}
 	}
-	for (keys $self->{stats}{nodesensor}) {
-		$self->{statslong}{nodesensor}{$_} += $self->{stats}{nodesensor}{$_};
+	for $n (@{ $self->{stats}{data}{nodesensor}}) {
+		$self->{statslong}{nodesensor}{ $n->{combo} } += $n->{num}
 	}
-	for (keys $self->{stats}{nodesensortype}) {
-		$self->{statslong}{nodesensortype}{$_} += $self->{stats}{nodesensortype}{$_};
+	for $n (@{ $self->{stats}{data}{nodesensortype}}) {
+		$self->{statslong}{nodesensortype}{ $n->{combo} } += $n->{num}
 	}
-	for (keys $self->{stats}{type}) {
-		$self->{statslong}{type}{$_} += $self->{stats}{type}{$_};
+	for $n (@{ $self->{stats}{data}{type}}) {
+		$self->{statslong}{type}{ $n->{type} } += $n->{num}
 	}
 	return;
 }
