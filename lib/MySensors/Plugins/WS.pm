@@ -7,12 +7,8 @@ package MySensors::Plugins::WS;
 use strict;
 use warnings;
 
-use HTTP::Daemon;
-use HTTP::Status;
-
 use threads;
 use threads::shared;
-use Thread::Queue;
 
 use JSON;
 use Data::Dumper;
@@ -25,7 +21,6 @@ sub new {
 		'controller' => undef,
 		'port' => $opts->{port} // 9998,
 		'log' => Log::Log4perl->get_logger(__PACKAGE__),
-		'queue' => Thread::Queue->new(),
 		'data' => \%data,
 	};
 	bless ($self, $class);
@@ -36,99 +31,110 @@ sub new {
 sub register {
 	my($self,$controller) = @_;
 	$self->{controller} = $controller;
-	$controller->register('updatedConfig',$self);
-	$controller->register('saveValue',$self);
-	$controller->register('saveBatteryLevel',$self);
 
-	my $config = $self->{controller}->{backend}->getConfig();
-	$self->{data}->{nodes} = shared_clone($config);
-
-	my $val = $self->{controller}->{backend}->getValues();
-	#$self->{data}->{values} = shared_clone($val);
+	# Get :shared pointer to Node config and current Values.
+	$self->{data}->{nodes}  = $self->{controller}->{backend}->getConfig();
+	$self->{data}->{values} = $self->{controller}->{backend}->getValues();
 
 	threads->create( sub { $self->thread(); } );
 	return $self;
 }
 
-sub updatedConfig {
-	my($self) = @_;
-	my $config = $self->{controller}->{backend}->getConfig();
-	$self->{data}->{nodes} = shared_clone($config);
-	return;
-}
-
-sub saveBatteryLevel {
-	my($self,$node,$level) = @_;
-	$self->saveValue($node,255,38,$level);
-	return ($node,$level);
-}
-
-sub saveValue {
-	my($self,$node,$sensor,$type,$value) = @_;
-	if(!defined $self->{data}->{values}) {
-		my %values :shared;
-		$self->{data}->{values} = \%values;
-	}
-	if(!defined $self->{data}->{values}->{$node}) {
-		my %node :shared;
-		$self->{data}->{values}->{$node} = \%node;
-	}
-	if(!defined $self->{data}->{values}->{$node}->{$sensor}) {
-		my %sensor :shared;
-		$self->{data}->{values}->{$node}->{$sensor} = \%sensor;
-	}
-	if(!defined $self->{data}->{values}->{$node}->{$sensor}->{$type}) {
-		my %type :shared;
-		$self->{data}->{values}->{$node}->{$sensor}->{$type} = \%type;
-	}
-	$self->{data}->{values}->{$node}->{$sensor}->{$type}->{value} = $value;
-	$self->{data}->{values}->{$node}->{lastseen} = time;
-	$self->{data}->{values}->{$node}->{$sensor}->{lastseen} = time;
-	$self->{data}->{values}->{$node}->{$sensor}->{$type}->{lastseen} = time;
-	return ($node,$sensor,$type,$value);
-}
-
 sub thread {
 	my($self) = @_;
-	my $d = HTTP::Daemon->new(
-		LocalAddr => '0.0.0.0',
-		LocalPort => $self->{port},
-		Timeout => 1,
-	) || die;
-	print "Please contact me at: <URL:", $d->url, ">\n";
-	while (1) {
-		my $c = $d->accept;
-		next unless defined $c;
-		while (my $r = $c->get_request) {
-			if ($r->method eq 'GET' and $r->uri->path eq "/nodes") {
-				# $c->send_file_response("/etc/passwd");
-				my $r = HTTP::Response->new( 200 );
-				$r->content(to_json($self->{data}->{nodes},{pretty => 1}));
-				#$r->content(Dumper($self->{nodes}));
-				$c->send_response($r);
-			}
-			elsif ($r->method eq 'GET' and $r->uri->path eq "/data") {
-				# $c->send_file_response("/etc/passwd");
-				my $r = HTTP::Response->new( 200 );
-				$r->content(to_json($self->{data},{pretty => 1}));
-				#$r->content(Dumper($self->{nodes}));
-				$c->send_response($r);
-			}
-			elsif ($r->method eq 'GET' and $r->uri->path eq "/values") {
-				# $c->send_file_response("/etc/passwd");
-				my $r = HTTP::Response->new( 200 );
-				$r->content(to_json($self->{data}->{values},{pretty => 1}));
-				#$r->content(Dumper($self->{nodes}));
-				$c->send_response($r);
-			}
-			else {
-				$c->send_error(RC_FORBIDDEN)
-			}
-		}
-		$c->close;
-		undef($c);
+	MySensors::Plugins::WS::Server->new($self,$self->{port})->run();
+}
+
+1;
+
+package MySensors::Plugins::WS::Server;
+
+use HTTP::Server::Simple::CGI;
+
+use parent 'HTTP::Server::Simple::CGI';
+
+use JSON;
+use MySensors::Const;
+
+sub new {
+	my ($class, @args) = @_;
+
+	my $parent = shift @args;
+
+    # possibly call Parent->new(@args) first
+	my $self = $class->SUPER::new(@args);
+
+	$self->{_parent} = $parent;
+
+	return $self;
+}
+
+sub notFound {
+	print "HTTP/1.0 404 Not found\r\n\r\n";
+	print "Not Found\r\n";
+}
+
+sub OK {
+	my($ct) = @_;
+	print "HTTP/1.0 200 OK\r\n";
+	print "Content-type: $ct\r\n\r\n";
+}
+
+sub printJSON {
+	my($cgi,$data) = @_;
+
+	my $jsoncallback    = $cgi->url_param('jsoncallback');
+	my $jsoncallbackend = '';
+	$jsoncallbackend    = ')' if defined $jsoncallback;
+	$jsoncallback      .= '(' if defined $jsoncallback;
+	$jsoncallback       = ''   unless defined $jsoncallback;
+
+	OK("text/plain");
+	print $jsoncallback . to_json($data,{ canonical => 1, pretty => 1}) . $jsoncallbackend;
+}
+
+sub handle_request {
+	my($self,$cgi) = @_;
+	my $pi = $cgi->path_info();
+
+
+	if($pi =~ m,^/get/dump(|.json)$,) { # Dump
+		printJSON($cgi, $self->{_parent}->{data});
+	} elsif($pi =~ m,^/get/nodes(|.json)$,) { # Nodes
+		my($node) = ($1);
+		my($n) = $self->{_parent}->{data}->{nodes};
+		if(!defined $n) { notFound(); return; }
+		printJSON($cgi,{
+			nodes => $n,
+		});
+	} elsif($pi =~ m,^/get/(\d+)(|.json)$,) { # Node
+		my($node) = ($1);
+		my($n) = $self->{_parent}->{data}->{nodes}->{$node};
+		my($ls) = $self->{_parent}->{data}->{values}->{$node}->{lastseen};
+		if(!defined $n) { notFound(); return; }
+		printJSON($cgi,{
+			nodeid => $node,
+			node => $n,
+			lastseen => $ls
+		});
+	} elsif($pi =~ m,^/get/(\d+)/(\d+)/(\d+)(|.json)$,) { # Sensor Value
+		my($node,$sensor,$type) = ($1,$2,$3);
+		if(!defined $self->{_parent}->{data}->{values}->{$node}) { notFound(); return; }
+		if(!defined $self->{_parent}->{data}->{values}->{$node}->{$sensor}) { notFound(); return; }
+		if(!defined $self->{_parent}->{data}->{values}->{$node}->{$sensor}->{$type}) { notFound(); return; }
+		my($v) = $self->{_parent}->{data}->{values}->{$node}->{$sensor}->{$type}->{value};
+		my($t) = $self->{_parent}->{data}->{values}->{$node}->{$sensor}->{$type}->{lastseen};
+		printJSON($cgi,{
+			nodeid => $node,
+			sensorid => $sensor,
+			type => $type,
+			typeStr => MySensors::Const::SetReqToStr($type),
+			value => $v,
+			lastseen => $t,
+		});
+	} else {
+		notFound();
 	}
-	print "End of thread... :(\n";
 }
 
 1;

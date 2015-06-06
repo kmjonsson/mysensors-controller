@@ -275,12 +275,26 @@ sub receive {
 	$self->{inqueue}->enqueue($msg);
 }
 
+sub send_msg {
+	my($self,$msg) = @_;
+	return 0 if defined $self->send(
+		$msg->{destination},
+		$msg->{sensor},
+		$msg->{command},
+		$msg->{acknowledge},
+		$msg->{type},
+		$msg->{payload}
+	);
+	return 1;
+}
+
 sub handle_msg {
 	my($self,$msg) = @_;
 	return 1 if !defined $msg or !defined $msg->{type};
 
 	return 1 if $msg->{type} eq 'SHUTDOWN';
 	return $self->process($msg) if $msg->{type} eq 'RADIO';
+	return $self->send_msg($msg) if $msg->{type} eq 'SEND';
 	return $self->updatedConfig($msg) if $msg->{type} eq 'CONFIG';
 
 	$self->{log}->error("unknown message type: " . $msg->{type});

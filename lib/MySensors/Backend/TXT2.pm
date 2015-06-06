@@ -7,6 +7,8 @@ package MySensors::Backend::TXT2;
 use strict;
 use warnings;
 
+use threads::shared;
+
 use JSON;
 
 sub new {
@@ -17,8 +19,8 @@ sub new {
 		'controller' => undef,
 		'datadir' => $opts->{'datadir'},
 		'log' => Log::Log4perl->get_logger(__PACKAGE__),
-		'nodes' => {},
-		'values' => {},
+		'nodes' => undef,
+		'values' => undef,
 	};
 	
 	$self->{datadir} .= "/" unless $self->{datadir} =~ m{/$};
@@ -71,30 +73,30 @@ sub _load {
 		my $cfg;
 		# nodes
 		if(!open($cfg,"<", $self->{datadir} . "$node/node.json")) {
-			$self->{log}->error("Failed to open: " . $self->{datadir} . "$node/node.json");
+			$self->{log}->error("Failed to open: " . $self->{datadir} . "$node/node.json: $!");
 			return undef;
 		}
 		my $json = join("",<$cfg>);
 		close($cfg);
 		if(!eval { $nodes{$node} = from_json($json); }) {
-			$self->{log}->error("Failed to parse: " . $self->{datadir} . "$node/node.json");
+			$self->{log}->error("Failed to parse: " . $self->{datadir} . "$node/node.json: $!");
 			return undef;
 		}
 		# values
 		if(!open($cfg,"<", $self->{datadir} . "$node/values.json")) {
-			$self->{log}->error("Failed to open: " . $self->{datadir} . "$node/values.json");
+			$self->{log}->error("Failed to open: " . $self->{datadir} . "$node/values.json: $!");
 			return undef;
 		}
 		$json = join("",<$cfg>);
 		close($cfg);
 		if(!eval { $values{$node} = from_json($json); }) {
-			$self->{log}->error("Failed to parse: " . $self->{datadir} . "$node/values.json");
+			$self->{log}->error("Failed to parse: " . $self->{datadir} . "$node/values.json: $!");
 			return undef;
 		}
 	}
 	closedir($dir);
-	$self->{nodes}  = \%nodes;
-	$self->{values} = \%values;
+	$self->{nodes}  = shared_clone(\%nodes);
+	$self->{values} = shared_clone(\%values);
 	$self->{controller}->receive({type => 'CONFIG'});
 	return $self;
 }
@@ -164,30 +166,36 @@ sub _saveValues {
 sub _initNode {
 	my($self,$nodeid) = @_;
 	if(!defined $self->{nodes}->{$nodeid}) {
-		$self->{nodes}->{$nodeid} = {
+		my %nodes :shared = (
 			'protocol'      => undef,
 			'version'       => undef,
 			'sketchversion' => undef,
 			'sketchname'    => undef,
 			'savelog'       => 'yes',
-		};
+		);
+		$self->{nodes}->{$nodeid} = \%nodes;
 		# Just create $nodeid hash to have it :-)
-		$self->{values}->{$nodeid} //= { };
+		my %values :shared;
+		$self->{values}->{$nodeid} //= \%values;
 		$self->_save($nodeid);
+		return $self;
 	}
+	return;
 }
 
 sub _initSensor {
 	my($self,$nodeid,$sensor) = @_;
 	$self->_initNode($nodeid);
-	if(!defined $self->{nodes}->{$nodeid}) {
-		$self->{nodes}->{$nodeid}->{$sensor} //= {
+	if(!defined $self->{nodes}->{$nodeid}->{$sensor}) {
+		my %sensor :shared = (
 			'type'          => undef,
-			'description'   => undef,
+			'description'   => ($nodeid == 255?'Node':undef),
 			'savelog'       => 'parent',
-		};
+		);
+		$self->{nodes}->{$nodeid}->{$sensor} //= \%sensor;
 		# Just create $nodeid hash to have it :-)
-		$self->{values}->{$nodeid}->{$sensor} //= { };
+		my %values :shared;
+		$self->{values}->{$nodeid}->{$sensor} //= \%values;
 		$self->_save($nodeid);
 	}
 }
@@ -256,7 +264,7 @@ sub getNextAvailableNodeId {
 	my($self) = @_;
 	for my $nodeid (1..254) {
 		if(!defined $self->{nodes}->{$nodeid}) {
-			return $self->_initNode($nodeid);
+			return $nodeid if $self->_initNode($nodeid);
 		}
 	}
 	return;
@@ -264,13 +272,16 @@ sub getNextAvailableNodeId {
 
 sub lastseen {
 	my($self,$nodeid,$sensorid,$type) = @_;
-	$self->{values}->{$nodeid} //= {} if defined $nodeid;
+	my %node :shared;
+	$self->{values}->{$nodeid} //= \%node if defined $nodeid;
 	if(defined $nodeid && defined $self->{values}->{$nodeid}) {
 		$self->{values}->{$nodeid}->{lastseen} = time;
-		$self->{values}->{$nodeid}->{$sensorid} //= {} if defined $sensorid;
+		my %sensor :shared;
+		$self->{values}->{$nodeid}->{$sensorid} //= \%sensor if defined $sensorid;
 		if(defined $sensorid && defined $self->{values}->{$nodeid}->{$sensorid}) {
 			$self->{values}->{$nodeid}->{$sensorid}->{lastseen} = time;
-			$self->{values}->{$nodeid}->{$sensorid}->{$type} //= {} if defined $type;
+			my %type :shared;
+			$self->{values}->{$nodeid}->{$sensorid}->{$type} //= \%type if defined $type;
 			if(defined $type && defined $self->{values}->{$nodeid}->{$sensorid}->{$type}) {
 				$self->{values}->{$nodeid}->{$sensorid}->{$type}->{lastseen} = time;
 			}
