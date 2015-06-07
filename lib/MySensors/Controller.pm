@@ -1,6 +1,28 @@
 
 package MySensors::Controller;
 
+=head1 MySensors::Controller
+
+Basic module for MySensors
+
+=head2 AUTHOR
+
+Magnus Jonsson <fot@fot.nu>
+
+=head2 CONTRIBUTOR
+
+Tomas Forsman <>
+
+=head2 LICENSE
+
+GNU GENERAL PUBLIC LICENSE Version 2 
+
+(See LICENSE file)
+
+=head2 Methods
+
+=cut
+
 use strict;
 use warnings;
 
@@ -319,19 +341,19 @@ sub handle_msg {
 	return 1;
 }
 
-sub run {
-	my($self,$timeout) = @_;
+sub main {
+	my($self) = @_;
 	if($self->{inqueue}->can("dequeue_timed")) {
-		while (defined(my $msg = $self->{inqueue}->dequeue_timed($timeout))) {
+		while (defined(my $msg = $self->{inqueue}->dequeue_timed($self->{timeout}))) {
 			my $r = $self->handle_msg($msg);
 			last if !defined $r;
 			last if $r == 1;
 		}
 	} else {
-		my $t = $timeout;
-		while (defined $self->{inqueue}->pending() && $timeout > 0) {
+		my $t = $self->{timeout};
+		while (defined $self->{inqueue}->pending() && $t > 0) {
 			if ($self->{inqueue}->pending() <= 0) {
-				$timeout--;
+				$t--;
 				sleep 1;
 				next;
 			}
@@ -342,6 +364,34 @@ sub run {
 		}
 	}
 }
+
+#----
+
+sub run {
+	my($self) = @_;
+
+	# TODO: Might not be neaded..
+	# Send version request (~gateway ping).
+	$self->sendVersionCheck();
+
+	while(1) {
+		$self->main();
+
+		# Check if no message received in timeout s or radio failed.
+		foreach my $r (@{$self->{radio}}) {
+			if($r->status() || !$self->timeoutCheck($r->id())) {
+				$self->{log}->error("Radio " . $r->id() . " failed. Restarting");
+				$r->restart();
+			}
+		}
+
+		# Send version request (~gateway ping).
+		$self->sendVersionCheck();
+	}
+}
+
+1;
+#----
 
 sub process {
 	my($self,$msg) = @_;
