@@ -93,6 +93,31 @@ sub printJSON {
 	print $jsoncallback . to_json($data,{ canonical => 1, pretty => 1}) . $jsoncallbackend;
 }
 
+sub printTree {
+	my($cgi,$data) = @_;
+	OK("text/html");
+	print $cgi->a({href=>"/get/dump"}, "Raw dump of all").$cgi->br."\n";
+	for my $node (sort {$a <=> $b} keys %{$data->{nodes}}) {
+		print $cgi->a({href=>"/get/$node"},"Node $node").$cgi->br."\n";
+		my @lst;
+		for my $val (keys %{$data->{nodes}->{$node}}) { # mixed num and alphanum, so <=> will bork. filter first.
+			push @lst, $val if ($val =~ /^\d+$/);
+		}
+		for my $val (sort {$a <=> $b} @lst) {
+			if (defined $data->{values}->{$node}->{$val}) {
+				my @types;
+				for my $type (keys %{$data->{values}->{$node}->{$val}}) {
+					push @types, $type if ($type =~ /^\d+$/)
+				}
+				for my $type (sort {$a <=> $b} @types) {
+					print $cgi->a({href=>"/get/$node/$val/$type"},"Sensor $node-$val-$type").$cgi->br."\n";
+				}
+			}
+		}
+	}
+	
+}
+
 sub handle_request {
 	my($self,$cgi) = @_;
 	my $pi = $cgi->path_info();
@@ -139,7 +164,8 @@ sub handle_request {
 			lastseen => $t,
 		});
 	} else {
-		notFound();
+		printTree($cgi,$self->{_parent}->{data});
+		#notFound();
 	}
 }
 
