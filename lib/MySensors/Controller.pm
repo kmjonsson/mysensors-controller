@@ -176,7 +176,17 @@ sub sendVersionCheck {
 				0,
 				MySensors::Const::Internal('VERSION')
 			);
-	$self->sendReboot();
+}
+
+sub sendReboot {
+	my($self,$nodeid) = @_;
+	$self->{log}->debug("Sending reboot request to $nodeid");
+	return $self->send( $nodeid,
+				0,
+				MySensors::Const::MessageType('INTERNAL'),
+				0,
+				MySensors::Const::Internal('REBOOT')
+			);
 }
 
 # SAVE #
@@ -288,6 +298,13 @@ sub send_msg {
 	return 1;
 }
 
+sub reboot_msg {
+	my($self,$msg) = @_;
+	return 0 if defined $self->sendReboot($msg->{nodeid});
+	return 1;
+
+}
+
 sub handle_msg {
 	my($self,$msg) = @_;
 	return 1 if !defined $msg or !defined $msg->{type};
@@ -296,6 +313,7 @@ sub handle_msg {
 	return $self->process($msg) if $msg->{type} eq 'RADIO';
 	return $self->send_msg($msg) if $msg->{type} eq 'SEND';
 	return $self->updatedConfig($msg) if $msg->{type} eq 'CONFIG';
+	return $self->reboot_msg($msg) if $msg->{type} eq 'REBOOT';
 
 	$self->{log}->error("unknown message type: " . $msg->{type});
 	return 1;

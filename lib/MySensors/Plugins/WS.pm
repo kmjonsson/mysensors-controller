@@ -107,6 +107,12 @@ sub handle_request {
 		printJSON($cgi,{
 			nodes => $n,
 		});
+	} elsif($pi =~ m,^/reboot/(\d+)$,) { # Reboot
+		my($node) = ($1);
+		$self->{_parent}->{controller}->receive({ type => "REBOOT", nodeid => $node });
+		printJSON($cgi,{
+			status => 'OK',
+		});
 	} elsif($pi =~ m,^/get/(\d+)(|.json)$,) { # Node
 		my($node) = ($1);
 		my($n) = $self->{_parent}->{data}->{nodes}->{$node};
