@@ -163,9 +163,10 @@ sub handle_request {
 			value => $v,
 			lastseen => $t,
 		});
-	} else {
+	} elsif ($pi eq "/") {
 		printTree($cgi,$self->{_parent}->{data});
-		#notFound();
+	} else {
+		notFound();
 	}
 }
 
