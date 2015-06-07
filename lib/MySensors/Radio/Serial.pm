@@ -88,7 +88,7 @@ sub start {
 
 	$self->{serial}->read_const_time(500);       # 500 milliseconds = 0.5 seconds
 	$self->{serial}->read_char_time(5);          # avg time between read char
-
+	$self->{serial}->purge_all();
 	
 	$self->{inqueue} = Thread::Queue->new();
 
