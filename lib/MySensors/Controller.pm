@@ -26,7 +26,10 @@ sub new {
 		'inqueue' => Thread::Queue->new(),
 	};
 	bless ($self, $class);
-	return unless $self->{backend}->init($self);
+	unless ($self->{backend}->init($self)) {
+		$self->{log}->error("Unable to init backend");
+		return undef;
+	}
 	my $id = 0;
 	foreach my $r (@{$self->{radio}}) {
 		$self->{lastMsg}->{$id} = time;

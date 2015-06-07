@@ -22,18 +22,18 @@ my $log = Log::Log4perl->get_logger(__PACKAGE__) || croak "Can't init log";
 # Radio
 my($radio) = loadGroup('Radio');
 if(scalar @$radio == 0) {
-	$log->error("Can't init Radio");
+	$log->error("Can't init Radio, aborting");
 	exit(1);
 }
 
 # Backend
 my($backend) = loadGroup('Backend');
 if(scalar @$backend == 0) {
-	$log->error("Can't init Backend");
+	$log->error("Can't init Backend, aborting");
 	exit(1);
 }
 if(scalar @$backend > 1) {
-	$log->error("Multiple Backend defined");
+	$log->error("Multiple Backend defined, aborting");
 	exit(1);
 }
 
@@ -42,7 +42,7 @@ my($plugins) = loadGroup("Plugin");
 
 my $mysensors = loadPackage('MySensors',{ radio => $radio, backend => $backend->[0], plugins => $plugins }) || croak "Can't init MySensors";
 if(!defined $mysensors) {
-	$log->error("Can't init MySensors");
+	$log->error("Can't init MySensors, aborting");
 	exit(1);
 }
 
@@ -78,7 +78,7 @@ sub loadGroup {
 		my($grp,$package,$n) = ($1,$2,$3);
 		my $p = loadPackage($package,$extra,$section);
 		if(!defined $p) {
-			$log->error("Can't init Plugin: $package$n");
+			$log->error("Can't init Plugin: $package$n, aborting");
 			exit(1);
 		}
 		push @result,$p;
