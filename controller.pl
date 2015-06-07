@@ -75,7 +75,7 @@ my $log = Log::Log4perl->get_logger(__PACKAGE__) || croak "Can't init log";
 =cut
 my($radio) = MySensors::Utils::loadGroup($log,$cfg,'Radio');
 if(scalar @$radio == 0) {
-	$log->error("Can't init Radio");
+	$log->error("Can't init Radio, aborting");
 	exit(1);
 }
 
@@ -84,11 +84,11 @@ if(scalar @$radio == 0) {
 =cut
 my($backend) = MySensors::Utils::loadGroup($log,$cfg,'Backend');
 if(scalar @$backend == 0) {
-	$log->error("Can't init Backend");
+	$log->error("Can't init Backend, aborting");
 	exit(1);
 }
 if(scalar @$backend > 1) {
-	$log->error("Multiple Backend defined");
+	$log->error("Multiple Backend defined, aborting");
 	exit(1);
 }
 
@@ -102,7 +102,7 @@ my($plugins) = MySensors::Utils::loadGroup($log,$cfg,"Plugin");
 =cut
 my $mysensors = MySensors::Utils::loadPackage($log,$cfg,'MySensors::Controller',{ radio => $radio, backend => $backend->[0], plugins => $plugins }) || croak "Can't init MySensors";
 if(!defined $mysensors) {
-	$log->error("Can't init MySensors");
+	$log->error("Can't init MySensors, aborting");
 	exit(1);
 }
 

@@ -77,28 +77,28 @@ sub updatestatslong {
 	my ($self) = @_;
 	$self->{statslong}{packets}     += $self->{stats}{packets};
 	$self->{statslong}{acknowledge} += $self->{stats}{acknowledge};
-	for (keys $self->{stats}{route}) {
+	for (keys %{$self->{stats}{route}}) {
 		$self->{statslong}{route}{$_} += $self->{stats}{route}{$_};
 	}
-	for (keys $self->{stats}{sendroute}) {
+	for (keys %{$self->{stats}{sendroute}}) {
 		$self->{statslong}{sendroute}{$_} += $self->{stats}{sendroute}{$_};
 	}
-	for (keys $self->{stats}{sendfail}) {
+	for (keys %{$self->{stats}{sendfail}}) {
 		$self->{statslong}{sendfail}{$_} += $self->{stats}{sendfail}{$_};
 	}
-	for (keys $self->{stats}{failtime}) {
+	for (keys %{$self->{stats}{failtime}}) {
 		$self->{statslong}{failtime}{$_} += $self->{stats}{failtime}{$_};
 	}
-	for (keys $self->{stats}{node}) {
+	for (keys %{$self->{stats}{node}}) {
 		$self->{statslong}{node}{$_} += $self->{stats}{node}{$_};
 	}
-	for (keys $self->{stats}{nodesensor}) {
+	for (keys %{$self->{stats}{nodesensor}}) {
 		$self->{statslong}{nodesensor}{$_} += $self->{stats}{nodesensor}{$_};
 	}
-	for (keys $self->{stats}{nodesensortype}) {
+	for (keys %{$self->{stats}{nodesensortype}}) {
 		$self->{statslong}{nodesensortype}{$_} += $self->{stats}{nodesensortype}{$_};
 	}
-	for (keys $self->{stats}{type}) {
+	for (keys %{$self->{stats}{type}}) {
 		$self->{statslong}{type}{$_} += $self->{stats}{type}{$_};
 	}
 	return;

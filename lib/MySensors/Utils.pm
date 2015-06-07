@@ -69,7 +69,7 @@ sub loadGroup {
 		my($grp,$package,$n) = ($1,$2,$3);
 		my $p = loadPackage($log,$cfg,$package,$extra,$section);
 		if(!defined $p) {
-			$log->error("Can't init Plugin: $package$n");
+			$log->error("Can't init Plugin: $package$n, aborting");
 			exit(1);
 		}
 		push @result,$p;

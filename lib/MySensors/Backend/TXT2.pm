@@ -53,11 +53,6 @@ sub getValues {
 	return $self->{values};
 }
 
-sub getConfig {
-	my($self) = @_;
-	return $self->{nodes};
-}
-
 sub clone {
 	my($self) = @_;
 	return $self;

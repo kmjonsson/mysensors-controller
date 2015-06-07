@@ -125,11 +125,6 @@ sub saveVersion {
 	$self->lastseen($nodeid,"fooversion");
 	return;
 }
-sub getConfig {
-	my($self) = @_;
-	return {
-	};
-}
 
 1;
 
