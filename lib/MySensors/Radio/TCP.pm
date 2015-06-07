@@ -99,7 +99,7 @@ sub start {
 	$self->{'sendthr'} = threads->create(
 		 sub { $self->send_thr(); }
 	);
-	$self->{log}->error("Connected");
+	$self->{log}->info("Connected");
 	return $self;
 }
 
@@ -144,7 +144,7 @@ sub send_thr {
 			my $data = $msg->{data};
 			my $size = $self->{socket}->send("$data\n");
 			if($size != length("$data\n")) {
-				$self->{log}->warn("Failed to write message");
+				$self->{log}->error("Failed to write message");
 			}
 		}
 	}

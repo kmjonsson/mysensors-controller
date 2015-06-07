@@ -1,5 +1,5 @@
 #
-# Example Plugin Example
+# RRD Plugin
 #
 
 package MySensors::Plugins::RRD;
@@ -31,13 +31,12 @@ sub register {
 	$self->{controller} = $controller;
 	$controller->register('saveValue',$self);
 	$controller->register('saveBatteryLevel',$self);
-	return;
+	return $self;
 }
 
 sub saveBatteryLevel {
 	my($self,$nodeid,$batteryLevel) = @_;
-	$self->saveValue($nodeid,255,38,$batteryLevel);
-	return ($nodeid,$batteryLevel);
+	return $self->saveValue($nodeid,255,38,$batteryLevel);
 }
 
 sub saveValue {
@@ -54,21 +53,21 @@ sub saveValue {
 		my $template = $self->{template} . "/${typestr}.rrd";
 		if(!-f $template) {
 			$self->{log}->debug("ERROR Could not find $template");
-			return ($nodeid,$sensor,$type,$value);
+			return;
 		}
 		if(!copy($template,$file)) {
 			$self->{log}->error("ERROR Can't copy $template -> $file");
-			return ($nodeid,$sensor,$type,$value);
+			return;
 		}
 	}
 	my $t = time;
 	if((RRDs::last($file) // 0) >= $t) {
-		return ($nodeid,$sensor,$type,$value);
+		return $self;
 	}
 	$typestr = "\L$typestr";
 	$self->{log}->debug("Update: $file ($nodeid,$sensor,$typestr\[$type\]) <- $t:$value {--template $typestr $t:$value}");
 	RRDs::update($file,"--template", $typestr ,"$t:$value");
-	return ($nodeid,$sensor,$type,$value);
+	return $self;
 }
 
 1;

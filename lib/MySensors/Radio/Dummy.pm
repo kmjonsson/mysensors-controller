@@ -13,7 +13,7 @@ sub new {
 	my $self  = {
 		'log' 			=> Log::Log4perl->get_logger(__PACKAGE__),
 		# Options
-		'infile'		=> $opts->{'infile'} // "/tmp/mys.in",
+		'infile'		=> $opts->{'infile'}  // "/tmp/mys.in",
 		'outfile'		=> $opts->{'outfile'} // "/tmp/mys.out",
 		# vars
 		'serial'		=> undef,
@@ -55,7 +55,8 @@ sub start {
 	$self->{'sendthr'} = threads->create(
 		 sub { $self->send_thr(); }
 	);
-	$self->{log}->error("Started");
+
+	$self->{log}->info("Started");
 	return $self;
 }
 
@@ -98,7 +99,7 @@ sub send_thr {
 		last if $msg->{type} eq 'SHUTDOWN';
 		if($msg->{type} eq 'RADIO') {
 			my $data = $msg->{data};
-			$self->{log}->info("Sending: $data");
+			$self->{log}->debug("Sending: $data");
 			if(open(my $out,">>",$self->{outfile})) {
 				print $out "$data\n";
 				close($out);
@@ -140,11 +141,8 @@ sub receive_thr {
 			last;
 		}
 
-		print ": '$response'\n";
-
 		# Split messages up based on '\n'. Only process messages
 		# that are longer then 8 chars.
-		# print STDERR "($response)\n";
 		my @msgs;
 		if($response =~ /[\n\r]+/x && $response =~ /[\r\n]+$/x) {
 			push @msgs,split(/[\n\r]+/x,$msg.$response);
@@ -157,7 +155,7 @@ sub receive_thr {
 		}
 		for ( grep { length > 8 && !/^#/ } @msgs ) { 
 			#next if /^0;0;/;
-			$self->{log}->info("received: '$_'");
+			$self->{log}->debug("received: '$_'");
 			$self->{'controller'}->receive({ type => "RADIO", data => $_ }); 
 		}
 	}

@@ -100,7 +100,7 @@ sub start {
 	$self->{'sendthr'} = threads->create(
 		 sub { $self->send_thr(); }
 	);
-	$self->{log}->error("Connected");
+	$self->{log}->info("Connected");
 	return $self;
 }
 
@@ -146,7 +146,7 @@ sub send_thr {
 			$self->{log}->info("Sending: $data");
 			my $size = $self->{serial}->write("$data\n");
 			if($size != length("$data\n")) {
-				$self->{log}->warn("Failed to write message");
+				$self->{log}->error("Failed to write message");
 			}
 		}
 	}
@@ -187,7 +187,6 @@ sub receive_thr {
 
 		# Split messages up based on '\n'. Only process messages
 		# that are longer then 8 chars.
-		# print STDERR "($response)\n";
 		my @msgs;
 		if($response =~ /[\n\r]+/x && $response =~ /[\r\n]+$/x) {
 			push @msgs,split(/[\n\r]+/x,$msg.$response);
@@ -199,8 +198,7 @@ sub receive_thr {
 			$msg .= $response;
 		}
 		for ( grep { length > 8 && !/^#/ } @msgs ) { 
-			#next if /^0;0;/;
-			$self->{log}->info("received: '$_'");
+			$self->{log}->debug("received: '$_'");
 			$self->{'controller'}->receive({ type => "RADIO", data => $_ }); 
 		}
 	}

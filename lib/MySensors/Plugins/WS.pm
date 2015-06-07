@@ -11,7 +11,6 @@ use threads;
 use threads::shared;
 
 use JSON;
-use Data::Dumper;
 
 sub new {
 	my($class,$opts) = @_;

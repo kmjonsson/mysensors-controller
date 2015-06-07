@@ -37,7 +37,7 @@ sub register {
 	my($self,$controller) = @_;
 	$self->{controller} = $controller;
 	$controller->register('process',$self);
-	return;
+	return $self;
 }
 sub zerostats {
 	my ($self) = @_;
@@ -199,7 +199,7 @@ sub process{
 	#my $crap = shift @_;
 	#$self->{log}->debug("$nodeid,$version");
 	#print "Dumpalainen: ".Dumper(\@_);
-	return ($data,$nodeid,$sensor,$command,$acknowledge,$type,$payload);
+	return $self;
 }
 
 #	$self->{log}->debug("$nodeid,$sensor,$type,$value");
