@@ -121,6 +121,10 @@ sub handle_request {
 	my($self,$cgi) = @_;
 	my $pi = $cgi->path_info();
 
+	#$self->{_parent}->{log}->info($cgi->remote_addr(). " - ".$cgi->request_method." ".$pi);
+	# goes to the client.. ehm.
+
+
 
 	if($pi =~ m,^/get/dump(|.json)$,) { # Dump
 		printJSON($cgi, $self->{_parent}->{data});
@@ -131,6 +135,13 @@ sub handle_request {
 		printJSON($cgi,{
 			nodes => $n,
 		});
+	} elsif($pi =~ m,^/get/values(|.json)$,) { # values
+		my($node) = ($1);
+		my($n) = $self->{_parent}->{data}->{values};
+		if(!defined $n) { notFound(); return; }
+		printJSON($cgi,{
+			values => $n,
+		});
 	} elsif($pi =~ m,^/reboot/(\d+)$,) { # Reboot
 		my($node) = ($1);
 		$self->{_parent}->{controller}->receive({ type => "REBOOT", nodeid => $node });
@@ -140,8 +151,8 @@ sub handle_request {
 	} elsif($pi =~ m,^/get/(\d+)(|.json)$,) { # Node
 		my($node) = ($1);
 		my($n) = $self->{_parent}->{data}->{nodes}->{$node};
-		my($ls) = $self->{_parent}->{data}->{values}->{$node}->{lastseen};
 		if(!defined $n) { notFound(); return; }
+		my($ls) = $self->{_parent}->{data}->{values}->{$node}->{lastseen};
 		printJSON($cgi,{
 			nodeid => $node,
 			node => $n,
