@@ -161,88 +161,119 @@ sub _saveValues {
 sub _initNode {
 	my($self,$nodeid) = @_;
 	if(!defined $self->{nodes}->{$nodeid}) {
+		my %sensors :shared;
 		my %nodes :shared = (
 			'protocol'      => undef,
 			'version'       => undef,
 			'sketchversion' => undef,
 			'sketchname'    => undef,
 			'savelog'       => 'yes',
+			'sensors'	    => \%sensors,
 		);
 		$self->{nodes}->{$nodeid} = \%nodes;
 		# Just create $nodeid hash to have it :-)
 		my %values :shared;
 		$self->{values}->{$nodeid} //= \%values;
+		$self->lastseen($nodeid);
 		$self->_save($nodeid);
 		return $self;
 	}
+	$self->lastseen($nodeid);
 	return;
 }
 
 sub _initSensor {
 	my($self,$nodeid,$sensor) = @_;
 	$self->_initNode($nodeid);
-	if(!defined $self->{nodes}->{$nodeid}->{$sensor}) {
+	if(!defined $self->{nodes}->{$nodeid}->{sensors}->{$sensor}) {
+		my %types  :shared;
 		my %sensor :shared = (
 			'type'          => undef,
+			'types'         => \%types,
 			'description'   => ($nodeid == 255?'Node':undef),
 			'savelog'       => 'parent',
 		);
-		$self->{nodes}->{$nodeid}->{$sensor} //= \%sensor;
+		$self->{nodes}->{$nodeid}->{sensors}->{$sensor} //= \%sensor;
 		# Just create $nodeid hash to have it :-)
 		my %values :shared;
 		$self->{values}->{$nodeid}->{$sensor} //= \%values;
+		$self->lastseen($nodeid,$sensor);
 		$self->_save($nodeid);
 	}
+	$self->lastseen($nodeid,$sensor);
+	return;
+}
+
+sub _initType {
+	my($self,$nodeid,$sensor,$type) = @_;
+	$self->_initSensor($nodeid,$sensor);
+	if(!defined $self->{nodes}->{$nodeid}->{sensors}->{$sensor}->{types}->{$type}) {
+		my %types  :shared;
+		my %type :shared = (
+			'description'   => MySensors::Const::SetReqToStr($type),
+		);
+		$self->{nodes}->{$nodeid}->{sensors}->{$sensor}->{types}->{$type} //= \%type;
+		# Just create $nodeid hash to have it :-)
+		my %values :shared;
+		$self->{values}->{$nodeid}->{$sensor}->{$type} //= \%values;
+		$self->lastseen($nodeid,$sensor,$type);
+		$self->_save($nodeid);
+	}
+	$self->lastseen($nodeid,$sensor,$type);
+	return;
 }
 
 sub _setNodeItem {
 	my($self,$nodeid,$key,$value) = @_;
 	$self->_initNode($nodeid);
-
 	my $noupdate = {
 		'sketchname' => 1
 	};
-	$self->lastseen($nodeid);
-
 	# only set "default" keys if ! defined.
-	return $self if exists $noupdate->{$key} && defined $self->{nodes}->{$nodeid}->{$key};
-	return $self if defined $self->{nodes}->{$nodeid}->{$key} && $self->{nodes}->{$nodeid}->{$key} eq $value;
+	return $self if exists $noupdate->{$key} 
+	             && defined $self->{nodes}->{$nodeid}->{$key};
+	return $self if defined $self->{nodes}->{$nodeid}->{$key} 
+	                     && $self->{nodes}->{$nodeid}->{$key} eq $value;
 
 	$self->{nodes}->{$nodeid}->{$key} = $value;
 	$self->_save($nodeid) || return undef;
-
 	return $self;
 }
 
 sub _setSensorItem {
-	my($self,$nodeid,$sensorid,$key,$value,$nosave) = @_;
+	my($self,$nodeid,$sensorid,$key,$value) = @_;
 	$self->_initSensor($nodeid,$sensorid);
 	my $noupdate = {
 		'description' => 1
 	};
-	$self->lastseen($nodeid,$sensorid);
-	return $self if exists $noupdate->{$key} && defined $self->{nodes}->{$nodeid}->{$sensorid}->{$key};
-	return $self if defined $self->{nodes}->{$nodeid}->{$sensorid}->{$key} && $self->{nodes}->{$nodeid}->{$sensorid}->{$key} eq $value;
 
-	$self->{nodes}->{$nodeid}->{$sensorid}->{$key} = $value;
-	#unless($nosave // 0) { # ignore :-)
-		$self->_save($nodeid) || return undef;
-	#}
+	# only set "default" keys if ! defined.
+	return $self if exists $noupdate->{$key} 
+	             && defined $self->{nodes}->{$nodeid}->{sensors}->{$sensorid}->{$key};
+	return $self if defined $self->{nodes}->{$nodeid}->{sensors}->{$sensorid}->{$key} 
+	                     && $self->{nodes}->{$nodeid}->{sensors}->{$sensorid}->{$key} eq $value;
+
+	$self->{nodes}->{$nodeid}->{sensors}->{$sensorid}->{$key} = $value;
+	$self->_save($nodeid) || return undef;
 	return $self;
 }
 
-sub _getSaveLog {
-	my($self,$nodeid,$sensor) = @_;
-    if(defined $self->{nodes}->{$nodeid} &&
-       defined $self->{nodes}->{$nodeid}->{$sensor}) {
-		my $val = $self->{nodes}->{$nodeid}->{$sensor}->{"savelog"};
-		if(defined $val && $val eq 'parent') {
-			my $nval = $self->{nodes}->{$nodeid}->{"savelog"};
-			return ($nval // "yes") eq 'yes';
-		}
-		return ($val // "yes") eq 'yes';
-	}
-	return 'yes';
+sub _setTypeItem {
+	my($self,$nodeid,$sensorid,$type,$key,$value) = @_;
+	$self->_initType($nodeid,$sensorid,$type);
+	my $noupdate = {
+		'description' => 1
+	};
+
+	# only set "default" keys if ! defined.
+	return $self if exists $noupdate->{$key} && 
+	                defined $self->{nodes}->{$nodeid}->{sensors}->{$sensorid}->{types}->{$type}->{$key};
+	return $self if defined $self->{nodes}->{$nodeid}->{sensors}->{$sensorid}->{types}->{$type}->{$key} && 
+                            $self->{nodes}->{$nodeid}->{sensors}->{$sensorid}->{types}->{$type}->{$key} eq $value;
+
+	$self->{nodes}->{$nodeid}->{sensors}->{$sensorid}->{types}->{$type}->{$key} = $value;
+	$self->_save($nodeid) || return undef;
+	return $self;
 }
 
 sub saveProtocol {
@@ -288,28 +319,9 @@ sub saveValue {
 	my ($self,$nodeid,$sensor,$type,$value) = @_;
 	$value =~ s,[\r\n],<NL>,g;
 
-	$self->_initSensor($nodeid,$sensor);
-
-	$self->lastseen($nodeid,$sensor,$type);
+	$self->_initType($nodeid,$sensor,$type);
 	$self->{values}->{$nodeid}->{$sensor}->{$type}->{value} = $value;
 	$self->_saveValues($nodeid);
-
-	if(0) {
-		if($self->_getSaveLog($nodeid,$sensor)) {
-			open(my $fh,">>",$self->{datadir}."${nodeid}/${sensor}.${type}.log") || die;
-			printf $fh "%d;%s\n",time,$value;
-			close($fh);
-		}
-
-		open(my $fh,">",$self->{datadir}."${nodeid}/${sensor}.${type}.json") || die;
-		printf $fh to_json({
-			timestamp => time,
-			value     => $value,
-			type      => $type,
-			typeStr   => MySensors::Const::SetReqToStr($type),
-		});
-		close($fh);
-	}
 	return;
 }
 
