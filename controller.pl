@@ -100,7 +100,7 @@ my($plugins) = MySensors::Utils::loadGroup($log,$cfg,"Plugin");
 =item C<Create MySensors object>
 
 =cut
-my $mysensors = MySensors::Utils::loadPackage($log,$cfg,'MySensors::Controller',{ radio => $radio, backend => $backend->[0], plugins => $plugins }) || croak "Can't init MySensors";
+my $mysensors = MySensors::Utils::loadPackage($log,$cfg,'MySensors::Controller',{ radio => $radio, backend => $backend->[0], plugins => $plugins, cfg => $cfg }) || croak "Can't init MySensors";
 if(!defined $mysensors) {
 	$log->error("Can't init MySensors, aborting");
 	exit(1);

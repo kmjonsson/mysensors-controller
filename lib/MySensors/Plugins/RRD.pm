@@ -39,6 +39,57 @@ sub saveBatteryLevel {
 	return $self->saveValue($nodeid,255,38,$batteryLevel);
 }
 
+sub _createRRD {
+	my($self,$type,$file) = @_;
+	my $ts = MySensors::Const::SetReqToStr($type);
+	return unless defined $ts;
+	return if $ts eq 'N/A';
+	my $ds;
+	my @rra;
+	if($self->{controller}->{cfg}->SectionExists("MySensors::Plugins::RRD Template $ts")) {
+		$ds  = $self->{controller}->{cfg}->val("MySensors::Plugins::RRD Template $ts",'ds');
+		@rra = $self->{controller}->{cfg}->val("MySensors::Plugins::RRD Template $ts",'rra');
+	} elsif($self->{controller}->{cfg}->SectionExists("MySensors::Plugins::RRD Template")) {
+		$ds  = $self->{controller}->{cfg}->val("MySensors::Plugins::RRD Template",'ds');
+		@rra = $self->{controller}->{cfg}->val("MySensors::Plugins::RRD Template",'rra');
+	} else {
+		$self->{log}->error("'MySensors::Plugins::RRD Template' section is not defined");
+		return;
+	}
+	if(!defined $ds) {
+		$self->{log}->error("'ds' is not defined");
+		return;
+	}
+	if(!scalar @rra) {
+		$self->{log}->error("no 'rra' defined");
+		return;
+	}
+	$ds =~ s,^\s+,,g;
+	$ds =~ s,\s+$,,g;
+	if($ds !~ /^(GAUGE|COUNTER|DERIVE|ABSOLUTE):\d+:(\d+|U):(\d+|U)$/) {
+		$self->{log}->error("DS string ($ds) is malformad");
+		return;
+	}
+	$ts = "\L$ts";
+	$ds = "DS:$ts:$ds";
+	foreach (@rra) {
+		s,^\s+,,g;
+		s,\s+$,,g;
+		if(!/^(AVERAGE|MIN|MAX|LAST):([\d+\.]+):(\d+):(\d+)$/) {
+			$self->{log}->error("RRA string ($_) is malformad");
+			return;
+		}
+		$_ = "RRA:$_";
+	}
+	RRDs::create($file,"--start","-24hours",$ds,@rra);
+	my $err = RRDs::error;
+	if($err) {
+		$self->{log}->error("RRD create: $err");
+		return;
+	}
+	return $self;
+}
+
 sub saveValue {
 	my($self,$nodeid,$sensor,$type,$value) = @_;
 	$self->{log}->debug("RRD $nodeid,$sensor,$type,$value");
@@ -50,13 +101,8 @@ sub saveValue {
 	}
 	my $typestr = MySensors::Const::SetReqToStr($type);
 	if(!-f $file) {
-		my $template = $self->{template} . "/${typestr}.rrd";
-		if(!-f $template) {
-			$self->{log}->debug("ERROR Could not find $template");
-			return;
-		}
-		if(!copy($template,$file)) {
-			$self->{log}->error("ERROR Can't copy $template -> $file");
+		if(!$self->_createRRD($type,$file)) {
+			$self->{log}->error("Can't create RRD");
 			return;
 		}
 	}

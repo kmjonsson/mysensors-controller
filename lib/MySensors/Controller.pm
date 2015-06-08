@@ -40,6 +40,7 @@ sub new {
 		'plugins' => $opts->{plugins},
 		'timeout' => $opts->{timeout} // 300,
 		'config'  => $opts->{config} // 'M',
+		'cfg'     => $opts->{cfg},
 		'callbacks' => {},
 		'route'   => {},
 		'version' => undef,
