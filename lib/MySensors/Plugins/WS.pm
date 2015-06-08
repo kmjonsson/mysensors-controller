@@ -158,6 +158,29 @@ sub handle_request {
 			node => $n,
 			lastseen => $ls
 		});
+	} elsif($pi =~ m,^/list(|.json)$,) { # List nodes
+		printJSON($cgi,{
+			nodes => [sort { $a <=> $b } keys %{ $self->{_parent}->{data}->{nodes} } ],
+		});
+	} elsif($pi =~ m,^/list/(\d+)(|.json)$,) { # List sensors
+		my($node) = ($1);
+		my($n) = $self->{_parent}->{data}->{nodes}->{$node};
+		if(!defined $n) { notFound(); return; }
+		printJSON($cgi,{
+			nodeid => $node,
+			sensors => [sort { $a <=> $b } keys %{ $n->{sensors} } ],
+		});
+	} elsif($pi =~ m,^/list/(\d+)/(\d+)(|.json)$,) { # List types
+		my($node,$sensor) = ($1,$2);
+		my($n) = $self->{_parent}->{data}->{nodes}->{$node};
+		if(!defined $n) { notFound(); return; }
+		my($s) = $n->{sensors}->{$sensor};
+		if(!defined $s) { notFound(); return; }
+		printJSON($cgi,{
+			nodeid => $node,
+			sensor => $sensor,
+			types => [sort { $a <=> $b } keys %{ $s->{types} } ],
+		});
 	} elsif($pi =~ m,^/get/(\d+)/(\d+)/(\d+)(|.json)$,) { # Sensor Value
 		my($node,$sensor,$type) = ($1,$2,$3);
 		if(!defined $self->{_parent}->{data}->{values}->{$node}) { notFound(); return; }
