@@ -6,7 +6,9 @@ use Data::Dumper;
 use JSON;
 use LWP::UserAgent;
 
-use lib "/data/mysensors/mysensors-controller/lib";
+use FindBin;
+use lib "$FindBin::RealBin/../lib";
+
 use MySensors::Const; 
 
 $Data::Dumper::Sortkeys=1;
@@ -240,15 +242,12 @@ for my $node (sort {$a <=> $b} keys %{$values->{values}}) {
 	my $curr = $currentcss{currentornot($values->{values}->{$node}->{lastseen})};
 	print "<fieldset class=\"$curr\"><legend>Sensor node $node</legend>";
 	print "<table class=\"lev1 $curr\"><tr><th class=\"sensorid\">SensorId</th><th class=\"type\">Type</th><th class=\"data\">Data</th></tr>\n";
-	my @lst;
-	for my $val (keys %{$nodes->{nodes}->{$node}}) { # mixed num and alphanum, so <=> will bork. filter first.
-		push @lst, $val if ($val =~ /^\d+$/);
-	}
-	for my $sensor (sort { $a <=> $b } @lst) {
+
+	for my $sensor (sort { $a <=> $b } keys %{$nodes->{nodes}->{$node}->{sensors}}) {
 		printf "<tr><td>%s</td><td>%s (%s)</td><td>%s</td></tr>\n",
 		       $sensor,
-		       MySensors::Const::PresentationToStr($nodes->{nodes}->{$node}->{$sensor}->{type} // ""),
-		       $nodes->{nodes}->{$node}->{$sensor}->{type},
+		       MySensors::Const::PresentationToStr($nodes->{nodes}->{$node}->{sensors}->{$sensor}->{type} // ""),
+		       $nodes->{nodes}->{$node}->{sensors}->{$sensor}->{type},
 		       tableforl2($node,$sensor);
 	}
 	print "</table>";
