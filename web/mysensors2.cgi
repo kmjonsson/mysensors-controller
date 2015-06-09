@@ -70,9 +70,15 @@ sub get_data {
         }
         return $res->content;
 }
-my $nodes = from_json(get_data("nodes"));
-my $values = from_json(get_data("values"));
-
+sub fail {
+	my ($msg) = @_;
+	print "<strong>Error: $msg</strong>";
+	exit(0);
+}
+my $data = get_data("nodes") // fail("Unable to get nodes from Controller WS");
+my $nodes = from_json($data);
+$data = get_data("values") // fail("Unable to get values from Controller WS");
+my $values = from_json($data);
 
 #for my $f (glob("/data/mysensors/data/*")) {
 #	#print "$f\n";
