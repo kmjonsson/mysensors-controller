@@ -171,9 +171,6 @@ sub _initNode {
 			'sensors'	    => \%sensors,
 		);
 		$self->{nodes}->{$nodeid} = \%nodes;
-		# Just create $nodeid hash to have it :-)
-		my %values :shared;
-		$self->{values}->{$nodeid} //= \%values;
 		$self->lastseen($nodeid);
 		$self->_save($nodeid);
 		return $self;
@@ -194,9 +191,6 @@ sub _initSensor {
 			'savelog'       => 'parent',
 		);
 		$self->{nodes}->{$nodeid}->{sensors}->{$sensor} //= \%sensor;
-		# Just create $nodeid hash to have it :-)
-		my %values :shared;
-		$self->{values}->{$nodeid}->{$sensor} //= \%values;
 		$self->lastseen($nodeid,$sensor);
 		$self->_save($nodeid);
 	}
@@ -213,9 +207,6 @@ sub _initType {
 			'description'   => MySensors::Const::SetReqToStr($type),
 		);
 		$self->{nodes}->{$nodeid}->{sensors}->{$sensor}->{types}->{$type} //= \%type;
-		# Just create $nodeid hash to have it :-)
-		my %values :shared;
-		$self->{values}->{$nodeid}->{$sensor}->{$type} //= \%values;
 		$self->lastseen($nodeid,$sensor,$type);
 		$self->_save($nodeid);
 	}
@@ -298,18 +289,24 @@ sub getNextAvailableNodeId {
 
 sub lastseen {
 	my($self,$nodeid,$sensorid,$type) = @_;
-	my %node :shared;
-	$self->{values}->{$nodeid} //= \%node if defined $nodeid;
-	if(defined $nodeid && defined $self->{values}->{$nodeid}) {
+	if(defined $nodeid) {
+		my %sensors :shared;
+		my %node :shared = (
+			sensors => \%sensors
+		);
+		$self->{values}->{$nodeid} //= \%node;
 		$self->{values}->{$nodeid}->{lastseen} = time;
-		my %sensor :shared;
-		$self->{values}->{$nodeid}->{$sensorid} //= \%sensor if defined $sensorid;
-		if(defined $sensorid && defined $self->{values}->{$nodeid}->{$sensorid}) {
-			$self->{values}->{$nodeid}->{$sensorid}->{lastseen} = time;
-			my %type :shared;
-			$self->{values}->{$nodeid}->{$sensorid}->{$type} //= \%type if defined $type;
-			if(defined $type && defined $self->{values}->{$nodeid}->{$sensorid}->{$type}) {
-				$self->{values}->{$nodeid}->{$sensorid}->{$type}->{lastseen} = time;
+		if(defined $sensorid) {
+			my %types :shared;
+			my %sensor :shared = (
+				types => \%types
+			);
+			$self->{values}->{$nodeid}->{sensors}->{$sensorid} //= \%sensor;
+			$self->{values}->{$nodeid}->{sensors}->{$sensorid}->{lastseen} = time;
+			if(defined $type) {
+				my %type :shared;
+				$self->{values}->{$nodeid}->{sensors}->{$sensorid}->{types}->{$type} //= \%type if defined $type;
+				$self->{values}->{$nodeid}->{sensors}->{$sensorid}->{types}->{$type}->{lastseen} = time;
 			}
 		}
 	}
@@ -320,7 +317,7 @@ sub saveValue {
 	$value =~ s,[\r\n],<NL>,g;
 
 	$self->_initType($nodeid,$sensor,$type);
-	$self->{values}->{$nodeid}->{$sensor}->{$type}->{value} = $value;
+	$self->{values}->{$nodeid}->{sensors}->{$sensor}->{types}->{$type}->{value} = $value;
 	$self->_saveValues($nodeid);
 	return;
 }
@@ -328,9 +325,9 @@ sub saveValue {
 sub getValue {
 	my ($self,$nodeid,$sensor,$type) = @_;
 	if(defined $self->{values}->{$nodeid} &&
-	   defined $self->{values}->{$nodeid}->{$sensor} &&
-	   defined $self->{values}->{$nodeid}->{$sensor}->{$type}) {
-		return $self->{values}->{$nodeid}->{$sensor}->{$type}->{value};
+	   defined $self->{values}->{$nodeid}->{sensors}->{$sensor} &&
+	   defined $self->{values}->{$nodeid}->{sensors}->{$sensor}->{types}->{$type}) {
+		return $self->{values}->{$nodeid}->{sensors}->{$sensor}->{types}->{$type}->{value};
 	}
 	return;
 }
@@ -338,9 +335,9 @@ sub getValue {
 sub getValueLastSeen {
 	my ($self,$nodeid,$sensor,$type) = @_;
 	if(defined $self->{values}->{$nodeid} &&
-	   defined $self->{values}->{$nodeid}->{$sensor} &&
-	   defined $self->{values}->{$nodeid}->{$sensor}->{$type}) {
-		return $self->{values}->{$nodeid}->{$sensor}->{$type}->{lastseen};
+	   defined $self->{values}->{$nodeid}->{sensors}->{$sensor} &&
+	   defined $self->{values}->{$nodeid}->{sensors}->{$sensor}->{types}->{$type}) {
+		return $self->{values}->{$nodeid}->{sensors}->{$sensor}->{types}->{$type}->{lastseen};
 	}
 	return;
 }

@@ -117,16 +117,12 @@ sub tableforl2 {
 	my ($nodeid,$sensorid) = @_;
 	my $x = "";
 	$x .= "<table class=\"lev2\">\n";
-	my @lst;
-	for my $k (keys %{$values->{values}->{$nodeid}->{$sensorid}}) {
-		push @lst, $k if ($k =~ /^\d+$/);
-	}
-	for my $k (sort { $a <=> $b } @lst) {
+	for my $k (sort { $a <=> $b } keys %{$values->{values}->{$nodeid}->{sensors}->{$sensorid}->{types}}) {
 		$x .= sprintf "<tr><td class=\"l2type\">%s (%s)</td><td class=\"l2data\">%s</td></tr>\n",
 			MySensors::Const::SetReqToStr($k),
 			$k,
-			ls_timeval($values->{values}->{$nodeid}->{$sensorid}->{$k}->{value},
-				   $values->{values}->{$nodeid}->{$sensorid}->{$k}->{lastseen});
+			ls_timeval($values->{values}->{$nodeid}->{sensors}->{$sensorid}->{types}->{$k}->{value},
+				   $values->{values}->{$nodeid}->{sensors}->{$sensorid}->{types}->{$k}->{lastseen});
 	}
 	$x .= "</table>";
 	return $x;
@@ -221,13 +217,18 @@ for my $key (sort {$a <=> $b} keys %{$nodes->{nodes}}) {
 	my $curr = $currentcss{$data{$key}{base}{current}};
 	printf "<tr class=\"$curr\"><td>%s</td>", $key;
 	printf "<td class=\"%s\">%s</td>", cssfromtime($ls),str_timeval($ls);
-	for (qw(lastseen sketchname sketchversion version)) {
+	for (qw(lastseen)) {
+		my $d = $values->{values}->{$key}->{$_} // "-";
+		$d =~ s/\&/\&amp;/g;
+		printf "<td>%s</td>", $d;
+	}
+	for (qw(sketchname sketchversion version)) {
 		my $d = $nodes->{nodes}->{$key}->{$_} // "-";
 		$d =~ s/\&/\&amp;/g;
 		printf "<td>%s</td>", $d;
 	}
-	my $battval = $values->{values}->{$key}->{&BATTERY_SENSOR}->{&BATTERY_TYPE}->{value};
-	my $batttime = $values->{values}->{$key}->{&BATTERY_SENSOR}->{&BATTERY_TYPE}->{lastseen};
+	my $battval = $values->{values}->{$key}->{sensors}->{&BATTERY_SENSOR}->{types}->{&BATTERY_TYPE}->{value};
+	my $batttime = $values->{values}->{$key}->{sensors}->{&BATTERY_SENSOR}->{types}->{&BATTERY_TYPE}->{lastseen};
 	my $batt;
 	if (defined $battval && defined $battval) {
 		$batt = "$batttime;$battval";
@@ -247,7 +248,7 @@ for my $node (sort {$a <=> $b} keys %{$values->{values}}) {
 		printf "<tr><td>%s</td><td>%s (%s)</td><td>%s</td></tr>\n",
 		       $sensor,
 		       MySensors::Const::PresentationToStr($nodes->{nodes}->{$node}->{sensors}->{$sensor}->{type} // ""),
-		       $nodes->{nodes}->{$node}->{sensors}->{$sensor}->{type},
+		       $nodes->{nodes}->{$node}->{sensors}->{$sensor}->{type} // "",
 		       tableforl2($node,$sensor);
 	}
 	print "</table>";
