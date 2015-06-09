@@ -232,11 +232,11 @@ sub saveProtocol {
 }
 
 sub saveSensor {
-	my($self,$nodeid,$sensor,$type) = @_;
-	$self->{log}->debug("NodeID: $nodeid sensor: $sensor type: $type");
-	($nodeid,$sensor,$type) = $self->callBack('saveSensor', $nodeid, $sensor, $type);
+	my($self,$nodeid,$sensor,$type,$description) = @_;
+	$self->{log}->debug("NodeID: $nodeid sensor: $sensor type: $type description: $description");
+	($nodeid,$sensor,$type,$description) = $self->callBack('saveSensor', $nodeid, $sensor, $type, $description);
 	if($self->{backend}->can("saveSensor")) {
-		return $self->{backend}->saveSensor($nodeid,$sensor,$type);
+		return $self->{backend}->saveSensor($nodeid,$sensor,$type,$description);
 	}
 }
 
@@ -434,7 +434,7 @@ sub process {
 		if($sensor == MySensors::Const::NodeSensorId()) {
 			$self->saveProtocol($nodeid,$payload);
 		} else {
-			$self->saveSensor($nodeid,$sensor,$type);
+			$self->saveSensor($nodeid,$sensor,$type,$payload);
 		}
 	} elsif($command == MySensors::Const::MessageType('SET')) {
 		$self->saveValue($nodeid,$sensor,$type,$payload);

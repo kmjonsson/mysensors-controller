@@ -58,7 +58,7 @@ sub saveProtocol {
 	return $self;
 }
 sub saveSensor {
-	my($self,$nodeid,$sensor,$type) = @_;
+	my($self,$nodeid,$sensor,$type,$description) = @_;
 	return $self;
 }
 sub saveValue {

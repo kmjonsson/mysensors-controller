@@ -37,9 +37,12 @@ sub saveProtocol {
 }
 
 sub saveSensor {
-	my($self,$nodeid,$sensor,$type) = @_;
+	my($self,$nodeid,$sensor,$type,$description) = @_;
 	open(my $fh,">",$self->{datadir}."${nodeid}.${sensor}.type") || die;
 	print $fh $type;
+	close($fh);
+	open(my $fh,">",$self->{datadir}."${nodeid}.${sensor}.description") || die;
+	print $fh $description;
 	close($fh);
 	$self->lastseen($nodeid,"sensortype");
 	return;
