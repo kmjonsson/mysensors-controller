@@ -51,7 +51,7 @@ sub init {
 
 sub restart {
 	my($self) = @_;
-	$self->{log}->info("Restarting " . $self->{host} . ":" . $self->{port});
+	$self->{log}->info("Restarting " . $self->{device});
 	$self->shutdown();
 	if(defined $self->{'serial'}) {
 		$self->{'serial'}->close();
