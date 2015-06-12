@@ -1,10 +1,11 @@
 
 package MySensors::Radio::Dummy;
 
+use forks;
+
 use strict;
 use warnings;
 
-use threads;
 use Thread::Queue;
 
 sub new {

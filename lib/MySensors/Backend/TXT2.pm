@@ -4,10 +4,10 @@
 
 package MySensors::Backend::TXT2;
 
+use forks::shared;
+
 use strict;
 use warnings;
-
-use threads::shared;
 
 use JSON;
 

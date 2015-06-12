@@ -1,10 +1,11 @@
 
 package MySensors::Radio::Serial;
 
+use forks;
+
 use strict;
 use warnings;
 
-use threads;
 use Thread::Queue;
 
 use Device::SerialPort qw( :PARAM :STAT 0.07 );
@@ -52,18 +53,30 @@ sub init {
 sub restart {
 	my($self) = @_;
 	$self->{log}->info("Restarting " . $self->{device});
-	$self->shutdown();
+	#$self->shutdown();
+	if(defined $self->{'sendthr'}) {
+		if($self->{'sendthr'}->is_joinable()) {
+			$self->{'sendthr'}->join();
+		} else {
+			$self->{'sendthr'}->kill('KILL')->join();
+		}
+		$self->{'sendthr'} = undef;
+	}
+	if(defined $self->{'recvthr'}) {
+		if($self->{'recvthr'}->is_joinable()) {
+			$self->{'recvthr'}->join();
+		} else {
+			$self->{'recvthr'}->kill('KILL')->join();
+		}
+		$self->{'recvthr'} = undef;
+	}
 	if(defined $self->{'serial'}) {
 		$self->{'serial'}->close();
-	}
-	if(defined $self->{'sendthr'} && $self->{'sendthr'}->is_joinable()) {
-		$self->{'sendthr'}->join();
-	}
-	if(defined $self->{'recvthr'} && $self->{'recvthr'}->is_joinable()) {
-		$self->{'recvthr'}->join();
+		$self->{'serial'} = undef;
 	}
 	if(defined $self->{inqueue}) {
 		$self->{inqueue}->end();
+		$self->{inqueue} = undef;
 	}
 	return $self->start();
 }
@@ -94,11 +107,11 @@ sub start {
 
 	# Start receive thread
 	$self->{'recvthr'} = threads->create(
-		 sub { $self->receive_thr(); }
+		 sub { $SIG{'KILL'} = sub { threads->exit(); }; $self->receive_thr(); }
 	);
 	# Start send thread
 	$self->{'sendthr'} = threads->create(
-		 sub { $self->send_thr(); }
+		 sub { $SIG{'KILL'} = sub { threads->exit(); }; $self->send_thr(); }
 	);
 	$self->{log}->info("Connected");
 	return $self;
@@ -150,6 +163,8 @@ sub send_thr {
 			}
 		}
 	}
+	$self->{'serial'}->close();
+	$self->{'serial'} = undef;
 	$self->{log}->warn("Exit...");
 }
 

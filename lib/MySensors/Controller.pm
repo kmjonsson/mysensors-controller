@@ -23,6 +23,8 @@ GNU GENERAL PUBLIC LICENSE Version 2
 
 =cut
 
+use forks;
+
 use strict;
 use warnings;
 

@@ -37,6 +37,8 @@ Pid file to use
 
 =cut
 
+use forks;
+
 use strict;
 use warnings;
 

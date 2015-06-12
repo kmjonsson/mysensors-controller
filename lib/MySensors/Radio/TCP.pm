@@ -1,10 +1,11 @@
 
 package MySensors::Radio::TCP;
 
+use forks;
+
 use strict;
 use warnings;
 
-use threads;
 use Thread::Queue;
 
 use IO::Socket::INET;
