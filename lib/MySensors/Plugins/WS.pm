@@ -109,14 +109,8 @@ sub printTree {
 		$res .= $cgi->a({href=>"/get/$node"},"Node $node").$cgi->br."\n";
 		$res .= "<ul>\n";
 		for my $val (sort { $a <=> $b } keys %{$data->{nodes}->{$node}->{sensors}}) {
-			if (defined $data->{values}->{$node}->{$val}) {
-				my @types;
-				for my $type (keys %{$data->{values}->{$node}->{$val}}) {
-					push @types, $type if ($type =~ /^\d+$/)
-				}
-				for my $type (sort {$a <=> $b} @types) {
-					$res .= $cgi->li.$cgi->a({href=>"/get/$node/$val/$type"},"Sensor $node-$val-$type").$cgi->br."\n";
-				}
+			for my $type (sort {$a <=> $b} keys %{$data->{values}->{$node}->{sensors}->{$val}->{types}}) {
+				$res .= $cgi->li.$cgi->a({href=>"/get/$node/$val/$type"},"Sensor $node-$val-$type").$cgi->br."\n";
 			}
 		}
 		$res .= "</ul>\n";
@@ -125,17 +119,17 @@ sub printTree {
 }
 
 sub process_one_req {
-    my($self,$client) = @_;
+	my($self,$client) = @_;
 	$self->{log}->debug("Thread/fork started $$");
-    while(my $request = $client->get_request) {
-        if ($request->method eq "GET") {
+	while(my $request = $client->get_request) {
+		if ($request->method eq "GET") {
 			$client->send_response($self->process_req($request));
-        } else {
+		} else {
 			$client->send_response(res(HTTP_METHOD_NOT_ALLOWED,"Method Not Allowed"));
 		}
-    }
-    $client->close;
-    undef($client);
+	}
+	$client->close;
+	undef($client);
 	$self->{log}->debug("Thread/fork completed $$");
 }
 
