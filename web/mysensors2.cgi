@@ -194,7 +194,10 @@ sub str_timeval {
 			if (time() - $t > 600) {
 				$col="#bb0000";
 			}
-			return sprintf "<span style=\"color: $col\">%s - %s</span>", scalar(localtime($t)), $d;
+			if ($d ne "") {
+				$d = " - ".$d;
+			}
+			return sprintf "<span style=\"color: $col\">%s%s</span>", scalar(localtime($t)), $d;
 		} else {
 			return $dat;
 		}
@@ -227,7 +230,7 @@ for my $key (sort {$a <=> $b} keys %{$nodes->{nodes}}) {
 	for (qw(lastseenvia)) {
 		print "<td>";
 		for my $d (keys (%{$values->{values}->{$key}->{lastseenvia}})) {
-			printf "%s @ %s<br>",$d, $values->{values}->{$key}->{lastseenvia}->{$d};
+			printf "%s @ %s<br>",$d, str_timeval($values->{values}->{$key}->{lastseenvia}->{$d});
 		}
 	}
 #	for (qw(lastseen)) {

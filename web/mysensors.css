@@ -19,7 +19,10 @@ th.id {
 width: 50px;
 }
 th.ls {
-width: 300px;
+width: 200px;
+}
+th.lsv {
+width: 250px;
 }
 th.lsraw {
 width: 150px;
