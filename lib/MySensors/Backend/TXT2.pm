@@ -267,6 +267,15 @@ sub _setTypeItem {
 	return $self;
 }
 
+sub _processLog {
+	my ($self,$nodeid,$payload) = @_;
+	if ($payload =~ /read: (\d+)-(\d+)-(\d+)/) {
+		$self->lastseen($1);
+		$self->lastseen($2);
+	}
+	return;
+}
+
 sub saveProtocol {
 	my($self,$nodeid,$protocol) = @_;
 	return $self->_setNodeItem($nodeid,'protocol',$protocol);
@@ -361,8 +370,13 @@ sub saveBatteryLevel {
 sub saveVersion {
 	my ($self,$nodeid,$version) = @_;
 	return $self->_setNodeItem($nodeid,'version',$version);
+}
+sub processLog {
+	my($self,$nodeid,$payload) = @_;
+	$self->_processLog($nodeid,$payload);
 	return;
 }
+
 
 1;
 

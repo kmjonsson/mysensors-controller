@@ -291,6 +291,15 @@ sub saveVersion {
 	}
 }
 
+sub processLog {
+	my($self,$nodeid,$payload) = @_;
+	$self->{log}->debug("NodeID: $nodeid logmsg: $payload");
+	($nodeid,$payload) = $self->callBack('processLog', $nodeid, $payload);
+	if($self->{backend}->can("processLog")) {
+		return $self->{backend}->processLog($nodeid,$payload);
+	}
+}
+
 # Other
 
 sub msg2str {
@@ -462,6 +471,7 @@ sub process {
 		} elsif($type == MySensors::Const::Internal('FIND_PARENT_RESPONSE')) {
 			# Do Nothing (Response to FIND_PARENT)
 		} elsif($type == MySensors::Const::Internal('LOG_MESSAGE')) {
+			$self->processLog($nodeid,$payload);
 			# Do logging..
 		} elsif($type == MySensors::Const::Internal('CHILDREN')) {
 			# Do Nothing
