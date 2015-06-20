@@ -90,6 +90,12 @@ sub _load {
 		}
 	}
 	closedir($dir);
+	for my $val (keys %values) { # upgrade check
+		if (!defined $values{$val}->{lastseenvia}) {
+			$self->{log}->debug("Upgrading node $val to contain lastseenvia");
+			$values{$val}->{lastseenvia} = {};
+		}
+	}
 	$self->{nodes}  = shared_clone(\%nodes);
 	$self->{values} = shared_clone(\%values);
 	$self->{controller}->receive({type => 'CONFIG'});
@@ -162,6 +168,7 @@ sub _initNode {
 	my($self,$nodeid) = @_;
 	if(!defined $self->{nodes}->{$nodeid}) {
 		my %sensors :shared;
+		my %lastseenvia :shared;
 		my %nodes :shared = (
 			'protocol'      => undef,
 			'version'       => undef,
@@ -169,6 +176,7 @@ sub _initNode {
 			'sketchname'    => undef,
 			'savelog'       => 'yes',
 			'sensors'	    => \%sensors,
+			'lastseenvia'   => \%lastseenvia,
 		);
 		$self->{nodes}->{$nodeid} = \%nodes;
 		$self->lastseen($nodeid);
@@ -272,6 +280,7 @@ sub _processLog {
 	if ($payload =~ /read: (\d+)-(\d+)-(\d+)/) {
 		$self->lastseen($1);
 		$self->lastseen($2);
+		$self->lastseenvia($1,$2)
 	}
 	return;
 }
@@ -319,6 +328,20 @@ sub lastseen {
 				$self->{values}->{$nodeid}->{sensors}->{$sensorid}->{types}->{$type}->{lastseen} = time;
 			}
 		}
+	}
+}
+sub lastseenvia {
+	my($self,$nodeid,$vianode) = @_;
+	$self->{log}->debug("lastseenvia($nodeid,$vianode)");
+	if(defined $nodeid && defined $vianode) {
+		my %lastseenvia :shared;
+		my %node :shared = (
+			lastseenvia => \%lastseenvia
+		);
+		$self->{values}->{$nodeid} //= \%node;
+
+		$self->{values}->{$nodeid}->{lastseenvia}->{$vianode} = time;
+		$self->{log}->debug("updated lastseenvia");
 	}
 }
 

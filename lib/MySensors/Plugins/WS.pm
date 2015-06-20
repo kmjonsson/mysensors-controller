@@ -165,10 +165,12 @@ sub process_req {
 		my($n) = $self->{data}->{nodes}->{$node};
 		if(!defined $n) { return notFound(); }
 		my($ls) = $self->{data}->{values}->{$node}->{lastseen};
+		my($lsv) = $self->{data}->{values}->{$node}->{lastseenvia};
 		return getJSON($cgi,{
 			nodeid => $node,
 			node => $n,
-			lastseen => $ls
+			lastseen => $ls,
+			lastseenvia => $lsv
 		});
 	} elsif($pi =~ m,^/list(|.json)$,) { # List nodes
 		return getJSON($cgi,{

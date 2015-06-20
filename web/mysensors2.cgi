@@ -211,7 +211,8 @@ updatelastseen();
 	print "<tr>";
 	print "<th class=\"id\" >Id</th>";
 	print "<th class=\"ls\" >Lastseen</th>";
-	print "<th class=\"lsraw\" >LastseenRaw</th>";
+	print "<th class=\"lsv\" >LastseenVia</th>";
+	#print "<th class=\"lsraw\" >LastseenRaw</th>";
 	print "<th class=\"sketchname\" >Sketchname</th>";
 	print "<th class=\"sketchversion\" >Sketchver</th>";
 	print "<th class=\"version\" >Version</th>";
@@ -223,11 +224,17 @@ for my $key (sort {$a <=> $b} keys %{$nodes->{nodes}}) {
 	my $curr = $currentcss{$data{$key}{base}{current}};
 	printf "<tr class=\"$curr\"><td>%s</td>", $key;
 	printf "<td class=\"%s\">%s</td>", cssfromtime($ls),str_timeval($ls);
-	for (qw(lastseen)) {
-		my $d = $values->{values}->{$key}->{$_} // "-";
-		$d =~ s/\&/\&amp;/g;
-		printf "<td>%s</td>", $d;
+	for (qw(lastseenvia)) {
+		print "<td>";
+		for my $d (keys (%{$values->{values}->{$key}->{lastseenvia}})) {
+			printf "%s @ %s<br>",$d, $values->{values}->{$key}->{lastseenvia}->{$d};
+		}
 	}
+#	for (qw(lastseen)) {
+#		my $d = $values->{values}->{$key}->{$_} // "-";
+#		$d =~ s/\&/\&amp;/g;
+#		printf "<td>%s</td>", $d;
+#	}
 	for (qw(sketchname sketchversion version)) {
 		my $d = $nodes->{nodes}->{$key}->{$_} // "-";
 		$d =~ s/\&/\&amp;/g;
