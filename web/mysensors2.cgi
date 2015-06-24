@@ -257,7 +257,9 @@ for my $key (sort {$a <=> $b} keys %{$nodes->{nodes}}) {
 print "<br><br><br>";
 for my $node (sort {$a <=> $b} keys %{$values->{values}}) {
 	my $curr = $currentcss{currentornot($values->{values}->{$node}->{lastseen})};
-	print "<fieldset class=\"$curr\"><legend>Sensor node $node</legend>";
+	my $sketchname = $nodes->{nodes}->{$node}->{'sketchname'} // "N/A";
+	my $sketchver  = $nodes->{nodes}->{$node}->{'sketchversion'} // "N/A";
+	print "<fieldset class=\"$curr\"><legend>Sensor node $node - $sketchname - $sketchver</legend>";
 	print "<table class=\"lev1 $curr\"><tr><th class=\"sensorid\">SensorId</th><th class=\"type\">Type</th><th class=\"data\">Data</th></tr>\n";
 
 	for my $sensor (sort { $a <=> $b } keys %{$nodes->{nodes}->{$node}->{sensors}}) {
