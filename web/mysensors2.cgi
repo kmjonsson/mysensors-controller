@@ -123,6 +123,10 @@ sub tableforl2 {
 	my ($nodeid,$sensorid) = @_;
 	my $x = "";
 	$x .= "<table class=\"lev2\">\n";
+	if (defined $nodes->{nodes}->{$nodeid}->{sensors}->{$sensorid}->{description}) {
+		$x .= sprintf "<tr><td class=\"l2type\">Desc</td><td class=\"l2data\">%s</td></tr>\n",
+			$nodes->{nodes}->{$nodeid}->{sensors}->{$sensorid}->{description};
+	}
 	for my $k (sort { $a <=> $b } keys %{$values->{values}->{$nodeid}->{sensors}->{$sensorid}->{types}}) {
 		$x .= sprintf "<tr><td class=\"l2type\">%s (%s)</td><td class=\"l2data\">%s</td></tr>\n",
 			MySensors::Const::SetReqToStr($k),

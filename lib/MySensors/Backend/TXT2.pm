@@ -294,7 +294,8 @@ sub saveProtocol {
 
 sub saveSensor {
 	my($self,$nodeid,$sensor,$type,$description) = @_;
-	return $self->_setSensorItem($nodeid,$sensor,'type',$type);
+	my $x = $self->_setSensorItem($nodeid,$sensor,'type',$type);
+	return unless defined $x;
 	return $self->_setSensorItem($nodeid,$sensor,'description',$description);
 }
 
