@@ -278,9 +278,11 @@ sub _setTypeItem {
 sub _processLog {
 	my ($self,$nodeid,$payload) = @_;
 	if ($payload =~ /read: (\d+)-(\d+)-(\d+)/) {
-		$self->lastseen($1);
-		$self->lastseen($2);
-		$self->lastseenvia($1,$2)
+		if ($1 != 255) {
+		    $self->lastseen($1);
+		    $self->lastseen($2);
+		    $self->lastseenvia($1,$2)
+		}
 	}
 	return;
 }
@@ -340,6 +342,9 @@ sub lastseenvia {
 		);
 		$self->{values}->{$nodeid} //= \%node;
 
+		if (!defined $self->{values}->{$nodeid}->{lastseenvia}) {
+			$self->{values}->{$nodeid}->{lastseenvia} = {};
+		}
 		$self->{values}->{$nodeid}->{lastseenvia}->{$vianode} = time;
 		$self->{log}->debug("updated lastseenvia");
 	}
