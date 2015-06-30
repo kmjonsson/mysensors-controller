@@ -309,6 +309,14 @@ sub getNextAvailableNodeId {
 	return;
 }
 
+sub nodeexists {
+	my($self,$nodeid) = @_;
+	if (defined $self->{nodes}->{$nodeid}) {
+		return 1;
+	}
+	return 0;
+}
+
 sub lastseen {
 	my($self,$nodeid,$sensorid,$type) = @_;
 	if(defined $nodeid) {
@@ -336,6 +344,14 @@ sub lastseen {
 sub lastseenvia {
 	my($self,$nodeid,$vianode) = @_;
 	$self->{log}->debug("lastseenvia($nodeid,$vianode)");
+	if (!$self->nodeexists($nodeid)) {
+		$self->{log}->error("lastseenvia failing, $nodeid does not exist");
+		return;
+	}
+	if (!$self->nodeexists($vianode)) {
+		$self->{log}->error("lastseenvia failing, $vianode does not exist");
+		return;
+	}
 	if(defined $nodeid && defined $vianode) {
 		my %lastseenvia :shared;
 		my %node :shared = (
