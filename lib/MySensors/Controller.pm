@@ -363,11 +363,13 @@ sub handle_msg {
 
 sub main {
 	my($self) = @_;
+	my($timeout) = time + 300; # just to exit the loop and let "run" do someting now and then...
 	if($self->{inqueue}->can("dequeue_timed")) {
 		while (defined(my $msg = $self->{inqueue}->dequeue_timed($self->{timeout}))) {
 			my $r = $self->handle_msg($msg);
 			last if !defined $r;
 			last if $r == 1;
+			last if $timeout < time;
 		}
 	} else {
 		my $t = $self->{timeout};
@@ -381,6 +383,7 @@ sub main {
 			my $r = $self->handle_msg($msg);
 			last if !defined $r;
 			last if $r == 1;
+			last if $timeout < time;
 		}
 	}
 }
