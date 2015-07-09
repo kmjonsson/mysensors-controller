@@ -65,6 +65,7 @@ sub new {
 			$p->register($self);
 		}
 	}
+	$self->{"can_dequeue_timed"} = $self->{inqueue}->can("dequeue_timed");
 	$self->{log}->info("Controller initialized");
 	return $self;
 }
@@ -349,7 +350,8 @@ sub reboot_msg {
 
 sub handle_msg {
 	my($self,$msg) = @_;
-	return 1 if !defined $msg or !defined $msg->{type};
+	return 0 if !defined $msg;
+	return 1 if !defined $msg->{type};
 
 	return 1 if $msg->{type} eq 'SHUTDOWN';
 	return $self->process($msg) if $msg->{type} eq 'RADIO';
@@ -361,30 +363,40 @@ sub handle_msg {
 	return 1;
 }
 
+sub cron {
+	my($self) = @_;
+	$self->{log}->debug("Cron event");
+	$self->callBack('cron');
+}
+
+sub dequeue {
+	my($self,$timeout) = @_;
+	return $self->{inqueue}->dequeue_timed($timeout) if $self->{"can_dequeue_timed"};
+
+	while (defined $self->{inqueue}->pending() && $timeout > 0) {
+		if ($self->{inqueue}->pending() <= 0) {
+			$timeout--;
+			sleep 1;
+			next;
+		}
+		return $self->{inqueue}->dequeue_nb();
+	}
+	return;
+}
+
 sub main {
 	my($self) = @_;
-	my($timeout) = time + 300; # just to exit the loop and let "run" do someting now and then...
-	if($self->{inqueue}->can("dequeue_timed")) {
-		while (defined(my $msg = $self->{inqueue}->dequeue_timed($self->{timeout}))) {
-			my $r = $self->handle_msg($msg);
-			last if !defined $r;
-			last if $r == 1;
-			last if $timeout < time;
+	my($timeout) = time + $self->{timeout}; # just to exit the loop and let "run" do someting now and then...
+	my($cron) = 0;
+	while (defined(my $msg = $self->dequeue(30))) {
+		if($cron < time) {
+			$self->cron();
+			$cron = (int(time / 60)+1)*60; # Every minute..
 		}
-	} else {
-		my $t = $self->{timeout};
-		while (defined $self->{inqueue}->pending() && $t > 0) {
-			if ($self->{inqueue}->pending() <= 0) {
-				$t--;
-				sleep 1;
-				next;
-			}
-			my $msg = $self->{inqueue}->dequeue_nb();
-			my $r = $self->handle_msg($msg);
-			last if !defined $r;
-			last if $r == 1;
-			last if $timeout < time;
-		}
+		my $r = $self->handle_msg($msg);
+		last if !defined $r;
+		last if $r == 1;
+		last if $timeout < time;
 	}
 }
 
