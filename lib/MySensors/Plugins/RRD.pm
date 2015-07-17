@@ -46,12 +46,15 @@ sub _createRRD {
 	return if $ts eq 'N/A';
 	my $ds;
 	my @rra;
+	my $step;
 	if($self->{controller}->{cfg}->SectionExists("MySensors::Plugins::RRD Template $ts")) {
 		$ds  = $self->{controller}->{cfg}->val("MySensors::Plugins::RRD Template $ts",'ds');
 		@rra = $self->{controller}->{cfg}->val("MySensors::Plugins::RRD Template $ts",'rra');
+		$step= $self->{controller}->{cfg}->val("MySensors::Plugins::RRD Template $ts",'step');
 	} elsif($self->{controller}->{cfg}->SectionExists("MySensors::Plugins::RRD Template")) {
 		$ds  = $self->{controller}->{cfg}->val("MySensors::Plugins::RRD Template",'ds');
 		@rra = $self->{controller}->{cfg}->val("MySensors::Plugins::RRD Template",'rra');
+		$step= $self->{controller}->{cfg}->val("MySensors::Plugins::RRD Template",'step');
 	} else {
 		$self->{log}->error("'MySensors::Plugins::RRD Template' section is not defined");
 		return;
@@ -64,6 +67,7 @@ sub _createRRD {
 		$self->{log}->error("no 'rra' defined");
 		return;
 	}
+	$step //= 300;
 	$ds =~ s,^\s+,,g;
 	$ds =~ s,\s+$,,g;
 	if($ds !~ /^(GAUGE|COUNTER|DERIVE|ABSOLUTE):\d+:(-?\d+|U):(-?\d+|U)$/) {
@@ -81,7 +85,7 @@ sub _createRRD {
 		}
 		$_ = "RRA:$_";
 	}
-	RRDs::create($file,"--start","-24hours",$ds,@rra);
+	RRDs::create($file,"--start","-24hours","--step",$step,$ds,@rra);
 	my $err = RRDs::error;
 	if($err) {
 		$self->{log}->error("RRD create: $err");
