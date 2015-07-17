@@ -66,8 +66,8 @@ sub _createRRD {
 	}
 	$ds =~ s,^\s+,,g;
 	$ds =~ s,\s+$,,g;
-	if($ds !~ /^(GAUGE|COUNTER|DERIVE|ABSOLUTE):\d+:(\d+|U):(\d+|U)$/) {
-		$self->{log}->error("DS string ($ds) is malformad");
+	if($ds !~ /^(GAUGE|COUNTER|DERIVE|ABSOLUTE):\d+:(-?\d+|U):(-?\d+|U)$/) {
+		$self->{log}->error("DS string ($ds) is malformed");
 		return;
 	}
 	$ts = "\L$ts";
@@ -76,7 +76,7 @@ sub _createRRD {
 		s,^\s+,,g;
 		s,\s+$,,g;
 		if(!/^(AVERAGE|MIN|MAX|LAST):([\d+\.]+):(\d+):(\d+)$/) {
-			$self->{log}->error("RRA string ($_) is malformad");
+			$self->{log}->error("RRA string ($_) is malformed");
 			return;
 		}
 		$_ = "RRA:$_";
