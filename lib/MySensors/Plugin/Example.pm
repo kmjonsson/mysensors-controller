@@ -2,38 +2,18 @@
 # Example Plugin
 #
 
-package MySensors::Plugins::Example;
+package MySensors::Plugin::Example;
+
+use base MySensors::Plugin;
 
 use strict;
 use warnings;
 
 sub new {
 	my($class,$opts) = @_;
-
-	my $self  = {
-		'controller' => undef,
-		'log' => Log::Log4perl->get_logger(__PACKAGE__),
-	};
-	bless ($self, $class);
-	$self->{log}->info(__PACKAGE__ . " initialized");
-	return $self;
-}
-
-sub register {
-	my($self,$controller) = @_;
-	$self->{controller} = $controller;
-	$controller->register('updatedConfig',$self);
-	$controller->register('sendValue',$self);
-	$controller->register('sendTime',$self);
-	$controller->register('sendConfig',$self);
-	$controller->register('saveProtocol',$self);
-	$controller->register('saveSensor',$self);
-	$controller->register('saveValue',$self);
-	$controller->register('saveBatteryLevel',$self);
-	$controller->register('saveSketchName',$self);
-	$controller->register('saveSketchVersion',$self);
-	$controller->register('saveVersion',$self);
-	$controller->register('process',$self);
+	$opts //= {};
+	$opts->{name} = __PACKAGE__;
+	my $self = $class->SUPER::new($opts);
 	return $self;
 }
 
@@ -82,7 +62,7 @@ sub saveVersion {
 	return $self;
 }
 sub process {
-	my($self,$data,$nYodeid,$sensor,$command,$acknowledge,$type,$payload) = @_;
+	my($self,$data,$nodeid,$sensor,$command,$acknowledge,$type,$payload) = @_;
 	return $self;
 }
 

@@ -2,33 +2,24 @@
 # Log Data Plugin
 #
 
-package MySensors::Plugins::LogData;
+package MySensors::Plugin::LogData;
 
 use strict;
 use warnings;
+
+use base 'MySensors::Plugin';
 
 use MySensors::Const;
 
 sub new {
 	my($class,$opts) = @_;
-
-	my $self  = {
-		'controller' => undef,
-		'path'       => $opts->{path},
-		'log' => Log::Log4perl->get_logger(__PACKAGE__),
-	};
-	bless ($self, $class);
-	$self->{log}->info(__PACKAGE__ . " initialized");
+	$opts //= {};
+	$opts->{name} = __PACKAGE__;
+	my $self = $class->SUPER::new($opts);
+	$self->{path} = $opts->{path};
 	return $self;
 }
 
-sub register {
-	my($self,$controller) = @_;
-	$self->{controller} = $controller;
-	$controller->register('saveValue',$self);
-	$controller->register('saveBatteryLevel',$self);
-	return $self;
-}
 
 sub saveBatteryLevel {
 	my($self,$nodeid,$batteryLevel) = @_;

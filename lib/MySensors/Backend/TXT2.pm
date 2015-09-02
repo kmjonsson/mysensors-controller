@@ -4,33 +4,33 @@
 
 package MySensors::Backend::TXT2;
 
-use forks::shared;
+use threads::shared;
 
 use strict;
 use warnings;
 
 use JSON;
 
-sub new {
-	my($class) = shift;
-	my($opts) = shift // {};
+use base 'MySensors::Backend';
 
-	my $self  = {
-		'controller' => undef,
-		'datadir' => $opts->{'datadir'},
-		'log' => Log::Log4perl->get_logger(__PACKAGE__),
-		'nodes' => undef,
-		'values' => undef,
-	};
-	
-	$self->{datadir} .= "/" unless $self->{datadir} =~ m{/$};
-	bless ($self, $class);
-	return $self;
+sub new {
+        my($class) = shift;
+        my($opts) = shift // {};
+
+		$opts->{name} = __PACKAGE__;
+        my $self = $class->SUPER::new($opts);
+        $self->{log} = Log::Log4perl->get_logger(__PACKAGE__);
+        # Options
+        $self->{'nodes'}                   = undef;
+        $self->{'values'}                  = undef;
+        $self->{'datadir'}                 = $opts->{datadir};
+		$self->{datadir} .= "/" unless $self->{datadir} =~ m{/$};
+        $self->{log}->info(__PACKAGE__ . " initialized");
+        return $self;
 }
 
 sub init {
-	my($self,$controller) = @_;
-	$self->{controller} = $controller;
+	my($self) = @_;
 	if(!-d $self->{datadir}) {
 		$self->{log}->error("'" . $self->{datadir} . "' does not exist");
 		return undef;
@@ -43,16 +43,19 @@ sub init {
 	return $self;
 }
 
+# remove?
 sub getNodes {
 	my($self) = @_;
 	return $self->{nodes};
 }
 
+# remove?
 sub getValues {
 	my($self) = @_;
 	return $self->{values};
 }
 
+# remove?
 sub clone {
 	my($self) = @_;
 	return $self;
@@ -67,25 +70,25 @@ sub _load {
 		next unless $node =~ /^\d+$/;
 		my $cfg;
 		# nodes
-		if(!open($cfg,"<", $self->{datadir} . "$node/node.json")) {
-			$self->{log}->error("Failed to open: " . $self->{datadir} . "$node/node.json: $!");
+		if(!open($cfg,"<", $self->{datadir} . "/$node/node.json")) {
+			$self->{log}->error("Failed to open: " . $self->{datadir} . "/$node/node.json: $!");
 			return undef;
 		}
 		my $json = join("",<$cfg>);
 		close($cfg);
 		if(!eval { $nodes{$node} = from_json($json); }) {
-			$self->{log}->error("Failed to parse: " . $self->{datadir} . "$node/node.json: $!");
+			$self->{log}->error("Failed to parse: " . $self->{datadir} . "/$node/node.json: $!");
 			return undef;
 		}
 		# values
 		if(!open($cfg,"<", $self->{datadir} . "$node/values.json")) {
-			$self->{log}->error("Failed to open: " . $self->{datadir} . "$node/values.json: $!");
+			$self->{log}->error("Failed to open: " . $self->{datadir} . "/$node/values.json: $!");
 			return undef;
 		}
 		$json = join("",<$cfg>);
 		close($cfg);
 		if(!eval { $values{$node} = from_json($json); }) {
-			$self->{log}->error("Failed to parse: " . $self->{datadir} . "$node/values.json: $!");
+			$self->{log}->error("Failed to parse: " . $self->{datadir} . "/$node/values.json: $!");
 			return undef;
 		}
 	}
@@ -98,7 +101,8 @@ sub _load {
 	}
 	$self->{nodes}  = shared_clone(\%nodes);
 	$self->{values} = shared_clone(\%values);
-	$self->{controller}->receive({type => 'CONFIG'});
+	# send data to MySensors::Backend::Nodes and/or Values
+	# $self->{controller}->receive({type => 'CONFIG'});
 	return $self;
 }
 
@@ -108,8 +112,8 @@ sub _save {
 			$self->{log}->error("Trying to save undefined node :-/");
 			return undef;
 	}
-	if(!-d $self->{datadir} . "$node") {
-		if(!mkdir($self->{datadir} . "$node")) {
+	if(!-d $self->{datadir} . "/$node") {
+		if(!mkdir($self->{datadir} . "/$node")) {
 			$self->{log}->error("Failed to mkdir: " . $self->{datadir} . "$node");
 			return undef;
 		}
@@ -130,7 +134,8 @@ sub _save {
 			unlink($self->{datadir} . "$node/node.json.new"); # || ignore :-/
 			return undef;
 	}
-	$self->{controller}->receive({type => 'CONFIG'});
+	# send data to MySensors::Backend::Nodes and/or Values
+	# $self->{controller}->receive({type => 'CONFIG'});
 	return $self->_saveValues($node);
 }
 

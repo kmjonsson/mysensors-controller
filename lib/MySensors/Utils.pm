@@ -77,6 +77,24 @@ sub loadGroup {
 	return \@result;
 }
 
+=item listGroup
+
+List modules based on Group with options from config file.
+
+Used by controller.pl
+
+=cut
+
+sub listGroup {
+	my($cfg,$group) = @_;
+	my @result;
+	foreach my $section ($cfg->GroupMembers($group)) {
+		next if $section !~ /^(\S+)\s+([^#]+)(#\d+|)$/;
+		push @result,$2;
+	}
+	return @result;
+}
+
 =back
 =cut
 

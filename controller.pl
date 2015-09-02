@@ -37,14 +37,14 @@ Pid file to use
 
 =cut
 
-use forks;
-
 use strict;
 use warnings;
 
 use Carp;
 use Log::Log4perl;
 use Config::IniFiles;
+
+use Getopt::Long;
 
 use FindBin;
 use lib "$FindBin::Bin/lib";
@@ -57,8 +57,13 @@ use MySensors::Utils;
 
 =cut
 
-# TODO: Use GetOpt...
-my $configFile = shift @ARGV // "$FindBin::Bin/config.ini";
+my $configFile = "$FindBin::Bin/config.ini";
+my $plugin     = undef;
+GetOptions (
+		"config=s" => \$configFile,    # numeric
+		"plugin=s"   => \$plugin,      # string
+	)
+or die("Error in command line arguments\n");
 
 =item C<Read config file>
 
@@ -72,45 +77,114 @@ my $logconf = $cfg->val('MySensors::Controller','logconf') || croak "'logconf' m
 Log::Log4perl->init($logconf) || croak "Can't load $logconf";
 my $log = Log::Log4perl->get_logger(__PACKAGE__) || croak "Can't init log";
 
-=item C<Load Radio Module(s)>
+$0 = 'MySensors';
+my %children;
+
+$SIG{HUP} = $SIG{KILL} = sub {
+	kill 'HUP', sort keys %children;
+	exit(1);
+};
+
+END {
+	kill 'HUP', sort keys %children;
+	exit(1);
+};
+
+# Fork off MMQ-Server
+my $mmqpid = fork();
+if(!defined $mmqpid) {
+	$log->error("Failed to fork()");
+	exit(1);
+}
+my $mmq;
+if(!$mmqpid) {
+	setpgrp(0,getppid());
+	$0 = 'MySensors::MMQ';
+	$mmq = MySensors::Utils::loadPackage($log,$cfg,'MySensors::MMQ',{cfg => $cfg, log => $log, server => 1, key => 'MyS'}) || croak "Can't init MySensors::MMQ (server)";
+	$mmq->run();
+	exit;
+} else {
+	$mmq = MySensors::Utils::loadPackage($log,$cfg,'MySensors::MMQ',{cfg => $cfg, log => $log, server => 0, key => 'MyS'}) || croak "Can't init MySensors::MMQ (client)";
+}
+$log->info("MySensors::MMQ forked @ $mmqpid");
+$children{$mmqpid} = 'MySensors::MMQ';
+
+=item C<Load Controller>
 
 =cut
-my($radio) = MySensors::Utils::loadGroup($log,$cfg,'Radio');
-if(scalar @$radio == 0) {
-	$log->error("Can't init Radio, aborting");
+my $controllerpid = fork();
+if(!defined $controllerpid) {
+	$log->error("Failed to fork() Controller");
+	exit(1);
+}
+if(!$controllerpid) {
+	setpgrp(0,getppid());
+	$0 = 'MySensors::Controller';
+	my $controller = MySensors::Utils::loadPackage($log,$cfg,'MySensors::Controller',{ cfg => $cfg, mmq => $mmq }) || croak "Can't init MySensors";
+	$controller->start();
+	exit;
+}
+$log->info("MySensors::Controller forked @ $controllerpid");
+$children{$controllerpid} = 'MySensors::MMQ';
+
+=item C<Load Module(s)>
+
+=cut
+
+my(@modules) = MySensors::Utils::listGroup($cfg,'Module');
+if(scalar @modules == 0) {
+	$log->error("No modules to init");
+	kill 'HUP', sort keys %children;
 	exit(1);
 }
 
-=item C<Load Backend Module>
-
-=cut
-my($backend) = MySensors::Utils::loadGroup($log,$cfg,'Backend');
-if(scalar @$backend == 0) {
-	$log->error("Can't init Backend, aborting");
-	exit(1);
-}
-if(scalar @$backend > 1) {
-	$log->error("Multiple Backend defined, aborting");
-	exit(1);
-}
-
-=item C<Load Plugin Module(s)>
-
-=cut
-my($plugins) = MySensors::Utils::loadGroup($log,$cfg,"Plugin");
-
-=item C<Create MySensors object>
-
-=cut
-my $mysensors = MySensors::Utils::loadPackage($log,$cfg,'MySensors::Controller',{ radio => $radio, backend => $backend->[0], plugins => $plugins, cfg => $cfg }) || croak "Can't init MySensors";
-if(!defined $mysensors) {
-	$log->error("Can't init MySensors, aborting");
-	exit(1);
+foreach my $module (sort @modules) {
+	my $pid = fork();
+	if(!defined $pid) {
+		$log->error("Failed to fork :-(, aborting");
+		kill 'HUP', sort keys %children;
+		exit(1);
+	}
+	if($pid) {
+		$children{$pid} = $module;
+	} else {
+		setpgrp(0,getppid());
+		$0 = $module;
+		my $mod = MySensors::Utils::loadPackage($log,$cfg,$module,{cfg => $cfg, log => $log, mmq => $mmq},"Module $module");
+		if(!defined $mod) {
+			$log->error("Failed to load $module");
+			exit(1);
+		}
+		my $type = $mod->moduleType();
+		$log->info("Loaded $mod ($type)");
+		my $e = $mod->start();
+		$log->info("Exited $mod ($type)");
+		exit;
+	}
 }
 
-=item C<Run until done :-)>
+sleep(2);
+$mmq->connect() || die;
 
-=cut
-$mysensors->run();
+foreach my $module ('MySensors::Controller', sort @modules) {
+	my $trycount = 5;
+	while(!defined $mmq->rpc($module . '::ping')) {
+		print "$trycount\n";
+		if($trycount-- == 0) {
+			kill 'HUP', sort keys %children;
+			$log->error("$module failed to start");
+			exit(1);
+		}
+	}
+	if(!defined $mmq->rpc($module . '::start')) {
+			kill 'HUP', sort keys %children;
+			$log->error("$module failed to start");
+			exit(1);
+	}
+	$log->info("$module started");
+}
 
-=back
+while(sleep(60)) {
+	# do nothing...
+}
+

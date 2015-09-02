@@ -23,7 +23,7 @@ GNU GENERAL PUBLIC LICENSE Version 2
 
 =cut
 
-use forks;
+use threads;
 
 use strict;
 use warnings;
@@ -32,75 +32,37 @@ use Thread::Queue;
 
 use MySensors::Const;
 
+use base 'MySensors::Module';
+
 sub new {
 	my($class) = shift;
 	my($opts)  = shift // {};
 
-	my $self  = {
-		'backend' => $opts->{backend},
-		'radio'   => $opts->{radio},
-		'plugins' => $opts->{plugins},
-		'timeout' => $opts->{timeout} // 300,
-		'config'  => $opts->{config} // 'M',
-		'cfg'     => $opts->{cfg},
-		'callbacks' => {},
-		'route'   => {},
-		'version' => undef,
-		'lastMsg' => {},
-		'log'     => Log::Log4perl->get_logger(__PACKAGE__),
-		'inqueue' => Thread::Queue->new(),
-	};
-	bless ($self, $class);
-	unless ($self->{backend}->init($self)) {
-		$self->{log}->error("Unable to init backend");
-		return undef;
-	}
-	my $id = 0;
-	foreach my $r (@{$self->{radio}}) {
-		$self->{lastMsg}->{$id} = time;
-		return unless $r->init($self,$id++);
-	}
-	if(defined $self->{'plugins'}) {
-		foreach my $p (@{$self->{plugins}}) {
-			$p->register($self);
-		}
-	}
-	$self->{"can_dequeue_timed"} = $self->{inqueue}->can("dequeue_timed");
-	$self->{log}->info("Controller initialized");
-	return $self;
-}
+	$opts->{name} = __PACKAGE__;
 
-sub register {
-	my($self,$method,$object) = @_;
-	$self->{callbacks}->{$method} //= [];
-	push @{$self->{callbacks}->{$method}},$object;
+	my $self = $class->SUPER::new($opts);
+	return unless defined $self;
+
+	$self->{timeout}  = $opts->{timeout} // 300;
+	$self->{config}   = $opts->{config} // 'M';
+	$self->{cfg}      = $opts->{cfg};
+	$self->{route}    = {};
+	$self->{version}  = undef;
+	$self->{lastMsg} = {};
+
+	$self->{log}->info("Controller initialized");
 	return $self;
 }
 
 sub callBack {
 	my($self,$method,@arg) = @_;
-	return @arg unless defined $self->{callbacks}->{$method};
-	$self->{log}->debug("callBack($method," . join(",",@arg) . ")");
-	foreach my $o (@{$self->{callbacks}->{$method}}) {
-		my($s,@rarg) = $o->$method(@arg);
-		if(!defined $s) {
-			$self->{log}->error("callBack for $o\-\>$method," . join(",",@arg) . ") failed");
-			next;
-		}
-		@arg = @rarg if scalar @rarg;
-	}
-	return @arg;
-}
-
-sub backend {
-	my($self) = @_;
-	return $self->{backend};
+	$self->{mmq}->send(\@arg,'MySensors::Controller::' . $method);
 }
 
 # Send an updated config to plugins that needs the config.
 sub updatedConfig {
 	my($self,$msg) = @_;
-	$self->callBack('updatedConfig');
+	$self->callBack('updatedConfig',$msg);
 	return $self;
 }
 
@@ -126,21 +88,17 @@ sub send {
 	$self->{log}->debug("Sending: ",msg2str($destination,$sensor,$command,$acknowledge,$type,$payload));
 
 	# send message
-	foreach my $r (@{$self->{radio}}) {
-		next if defined $self->{route}->{$destination} && $_->id() != $self->{route}->{$destination};
-		$self->{log}->debug("Sending via " . $r->id());
-		my $ret = $r->send({ type => 'RADIO', data => $td });
-		if(!defined $ret) {
-			$self->{log}->warn("Failed to write message via " . $r->id());
-			return;
-		}
+	if(defined $self->{route}->{$destination}) {
+		$self->{mmq}->send($td,'MySensors::Radio::send#' . $self->{route}->{$destination});
+	} else {
+		$self->{mmq}->send($td,'MySensors::Radio::send');
 	}
 	return $self;
 }
 
 sub sendNextAvailableNodeId {
 	my($self) = @_;
-	my($id) = $self->{backend}->getNextAvailableNodeId();
+	my($id) = $self->{mmq}->rpc('MySensors::Backend::getNextAvailableNodeId');
 	if(!defined $id) {
 		$self->{log}->error("Can't get new sensor id");
 		return;
@@ -157,16 +115,12 @@ sub sendNextAvailableNodeId {
 sub sendValue {
 	my ($self,$nodeid,$sensor,$type) = @_;
 	$self->{log}->debug("NodeID: $nodeid sensor: $sensor type: $type");
-	if(!$self->{backend}->can("getValue")) {
-		$self->{log}->error("Backend does not support 'getValue");
-		return;
-	}
-	my($value) = $self->{backend}->getValue($nodeid,$sensor,$type);
+	my($value) = $self->{mmq}->rpc('MySensors::Backend::getValue',{node => $nodeid, sensor => $sensor, type => $type});
 	if(!defined $value) {
 		$self->{log}->debug("Got no value from backend :-( sending empty string");
 		$value = "";
 	}
-	($nodeid, $sensor, $type, $value) = $self->callBack('sendValue', $nodeid, $sensor, $type, $value);
+	$self->callBack('sendValue', $nodeid, $sensor, $type, $value);
 	$self->send($nodeid,
 			$sensor,
 			MySensors::Const::MessageType('SET'),
@@ -179,7 +133,7 @@ sub sendTime {
 	my ($self,$nodeid,$sensor) = @_;
 	$self->{log}->debug("NodeID: $nodeid sensor: $sensor");
 	my $t = time;
-	($nodeid,$t) = $self->callBack('sendTime', $nodeid, $t);
+	$self->callBack('sendTime', $nodeid, $t);
 	$self->send($nodeid,
 			$sensor,
 			MySensors::Const::MessageType('INTERNAL'),
@@ -190,15 +144,13 @@ sub sendTime {
 
 sub sendConfig {
 	my ($self,$dest) = @_;
-	$self->{log}->debug("Dest: $dest");
-	my $config = $self->{config};
-	($dest,$config) = $self->callBack('sendConfig', $dest, $config);
+	$self->callBack('sendConfig', $dest, $self->{config});
 	$self->send($dest,
 			MySensors::Const::NodeSensorId(),
 			MySensors::Const::MessageType('INTERNAL'),
 			0,
 			MySensors::Const::Internal('CONFIG'),
-			$config);
+			$self->{config});
 }
 
 sub sendVersionCheck {
@@ -228,77 +180,60 @@ sub sendReboot {
 sub saveProtocol {
 	my($self,$nodeid,$protocol) = @_;
 	$self->{log}->debug("NodeID: $nodeid protocol: $protocol");
-	($nodeid, $protocol) = $self->callBack('saveProtocol', $nodeid, $protocol);
-	if($self->{backend}->can("saveProtocol")) {
-		return $self->{backend}->saveProtocol($nodeid,$protocol);
-	}
+	$self->callBack('saveProtocol', $nodeid, $protocol);
+	return $self->{mmq}->send({ node => $nodeid, protocol => $protocol}, 'MySensors::Backend::saveProtocol');
 }
 
 sub saveSensor {
 	my($self,$nodeid,$sensor,$type,$description) = @_;
 	$self->{log}->debug("NodeID: $nodeid sensor: $sensor type: $type description: $description");
-	($nodeid,$sensor,$type,$description) = $self->callBack('saveSensor', $nodeid, $sensor, $type, $description);
-	if($self->{backend}->can("saveSensor")) {
-		return $self->{backend}->saveSensor($nodeid,$sensor,$type,$description);
-	}
+	$self->callBack('saveSensor', $nodeid, $sensor, $type, $description);
+	return $self->{mmq}->send({ node => $nodeid, sensor => $sensor, type => $type, description => $description}, 'MySensors::Backend::saveSensor');
 }
 
 sub saveValue {
 	my ($self,$nodeid,$sensor,$type,$value) = @_;
 	$self->{log}->debug("NodeID: $nodeid sensor: $sensor type: $type value: $value");
-	($nodeid,$sensor,$type,$value) = $self->callBack('saveValue', $nodeid, $sensor, $type, $value);
-	if($self->{backend}->can("saveValue")) {
-		return $self->{backend}->saveValue($nodeid,$sensor,$type,$value);
-	}
-
+	$self->callBack('saveValue', $nodeid, $sensor, $type, $value);
+	return $self->{mmq}->send({ node => $nodeid, sensor => $sensor, type => $type, value => $value}, 'MySensors::Backend::saveValue');
 }
 
 sub saveBatteryLevel {
 	my($self,$nodeid,$batteryLevel) = @_;
 	$self->{log}->debug("NodeID: $nodeid batteryLevel $batteryLevel");
-	($nodeid,$batteryLevel) = $self->callBack('saveBatteryLevel', $nodeid, $batteryLevel);
-	if($self->{backend}->can("saveBatteryLevel")) {
-		return $self->{backend}->saveBatteryLevel($nodeid,$batteryLevel);
-	}
+	$self->callBack('saveBatteryLevel', $nodeid, $batteryLevel);
+	return $self->{mmq}->send({ node => $nodeid, batteryLevel => $batteryLevel}, 'MySensors::Backend::saveBatteryLevel');
 }
 
 sub saveSketchName {
 	my($self,$nodeid,$name) = @_;
 	$self->{log}->debug("NodeID: $nodeid name: $name");
-	($nodeid,$name) = $self->callBack('saveSketchName', $nodeid, $name);
-	if($self->{backend}->can("saveSketchName")) {
-		return $self->{backend}->saveSketchName($nodeid,$name);
-	}
+	$self->callBack('saveSketchName', $nodeid, $name);
+	return $self->{mmq}->send({ node => $nodeid, name => $name}, 'MySensors::Backend::saveSketchName');
 }
 
 sub saveSketchVersion {
 	my($self,$nodeid,$version) = @_;
 	$self->{log}->debug("NodeID: $nodeid version: $version");
-	($nodeid,$version) = $self->callBack('saveSketchVersion', $nodeid, $version);
-	if($self->{backend}->can("saveSketchVersion")) {
-		return $self->{backend}->saveSketchVersion($nodeid,$version);
-	}
+	$self->callBack('saveSketchVersion', $nodeid, $version);
+	return $self->{mmq}->send({ node => $nodeid, version => $version}, 'MySensors::Backend::saveSketchVersion');
 }
 
 sub saveVersion {
 	my($self,$nodeid,$version) = @_;
 	$self->{log}->debug("Got version: Node=$nodeid Version=$version");
 	if($nodeid == 0) {
-		($nodeid,$version) = $self->callBack('saveVersion', $nodeid, $version);
+		$self->callBack('saveVersion', $nodeid, $version);
 		$self->{version} = $version;
-		if($self->{backend}->can("saveVersion")) {
-			return $self->{backend}->saveVersion($nodeid,$version);
-		}
+		return $self->{mmq}->send({ node => $nodeid, version => $version}, 'MySensors::Backend::saveVersion');
 	}
 }
 
 sub processLog {
 	my($self,$nodeid,$payload) = @_;
 	$self->{log}->debug("NodeID: $nodeid logmsg: $payload");
-	($nodeid,$payload) = $self->callBack('processLog', $nodeid, $payload);
-	if($self->{backend}->can("processLog")) {
-		return $self->{backend}->processLog($nodeid,$payload);
-	}
+	$self->callBack('processLog', $nodeid, $payload);
+	return $self->{mmq}->send({ node => $nodeid, payload => $payload}, 'MySensors::Backend::processLog');
 }
 
 # Other
@@ -314,18 +249,6 @@ sub msg2str {
 	$typeStr = MySensors::Const::InternalToStr($type)  . "($type)" if $command eq MySensors::Const::MessageType('INTERNAL');
 	$payload = "" unless defined $payload;
 	return join(" ; ","NodeID:$nodeid","Sensor:$sensor",$commandStr,$acknowledgeStr,$typeStr,$payload);
-}
-
-# This is called by other thread(s)
-sub shutdown {
-	my($self) = @_;
-	$self->receive({ type => "SHUTDOWN" });
-}
-
-# This is called by other thread(s)
-sub receive {
-	my($self,$msg) = @_;
-	$self->{inqueue}->enqueue($msg);
 }
 
 sub send_msg {
@@ -348,7 +271,7 @@ sub reboot_msg {
 
 }
 
-sub handle_msg {
+sub X_handle_msg {
 	my($self,$msg) = @_;
 	return 0 if !defined $msg;
 	return 1 if !defined $msg->{type};
@@ -369,21 +292,8 @@ sub cron {
 	$self->callBack('cron');
 }
 
-sub dequeue {
-	my($self,$timeout) = @_;
-	return $self->{inqueue}->dequeue_timed($timeout) if $self->{"can_dequeue_timed"};
 
-	while (defined $self->{inqueue}->pending() && $timeout > 0) {
-		if ($self->{inqueue}->pending() <= 0) {
-			$timeout--;
-			sleep 1;
-			next;
-		}
-		return $self->{inqueue}->dequeue_nb();
-	}
-	return;
-}
-
+=item
 sub main {
 	my($self) = @_;
 	my($timeout) = time + $self->{timeout}; # just to exit the loop and let "run" do someting now and then...
@@ -399,16 +309,26 @@ sub main {
 		last if $timeout < time;
 	}
 }
+=cut
 
 #----
 
+sub _init {
+	my($self) = @_;
+	$self->{mmq}->subscribe('MySensors::Controller::receive', sub { my($self,$data,$queue) = @_; $self->process($data); } , $self );
+}
+
+# TODO:
+# Fix cron.. 
+# fix stuff from 
 sub run {
 	my($self) = @_;
+	$self->{log}->info("Controller: is running :-)\n");
+	while(!$self->{mmq}->once(60)) {
+		#$self->sendVersionCheck();
+	}
 
-	# TODO: Might not be neaded..
-	# Send version request (~gateway ping).
-	$self->sendVersionCheck();
-
+=item
 	while(1) {
 		$self->main();
 
@@ -423,6 +343,7 @@ sub run {
 		# Send version request (~gateway ping).
 		$self->sendVersionCheck();
 	}
+=cut
 }
 
 1;
@@ -445,8 +366,7 @@ sub process {
 	$self->{log}->debug("Got: ", msg2str($nodeid,$sensor,$command,$acknowledge,$type,$payload));
 
 	# call plugin with data
-	($data,$nodeid,$sensor,$command,$acknowledge,$type,$payload) =
-		$self->callBack('process',$data,$nodeid,$sensor,$command,$acknowledge,$type,$payload);
+	$self->callBack('process',$data,$nodeid,$sensor,$command,$acknowledge,$type,$payload);
 
 	$self->{route}->{$nodeid} = $msg->{radio} if $nodeid > 0 && $nodeid < 255;
 

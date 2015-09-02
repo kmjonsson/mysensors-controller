@@ -1,36 +1,40 @@
 
 package MySensors::Radio::Serial;
 
-use forks;
-
 use strict;
 use warnings;
 
-use Thread::Queue;
+use base 'MySensors::Radio';
 
+use IO::Select;
 use Device::SerialPort qw( :PARAM :STAT 0.07 );
 
+use Data::Dumper;
 
 sub new {
 	my($class) = shift;
+
 	my($opts) = shift // {};
-	my $self  = {
-		'log' 			=> Log::Log4perl->get_logger(__PACKAGE__),
-		# Options
-		'timeout'		=> $opts->{'timeout'} // 300,
-		'device'   		=> $opts->{'device'} // "/dev/ttyUSB0",
-		'baudrate'  	=> $opts->{'baudrate'} // 115200,
-		'parity'  		=> $opts->{'parity'} // "none",
-		'databits'  	=> $opts->{'databits'} // 8,
-		'stopbits'  	=> $opts->{'stopbits'} // 1,
-		'handshake'  	=> $opts->{'handshake'} // "none",
-		# vars
-		'serial'		=> undef,
-		'controller'	=> undef,
-		'id'			=> undef,
-		'inqueue'       => undef,
-	};
-	bless ($self, $class);
+
+	$opts->{name} = __PACKAGE__;
+
+	my $self = $class->SUPER::new($opts);
+	$self->{log} = Log::Log4perl->get_logger(__PACKAGE__);
+
+	# Options
+	$self->{'timeout'}		= $opts->{'timeout'} // 300;
+	$self->{'device'}       = $opts->{'device'} // "/dev/ttyUSB0";
+	$self->{'baudrate'}     = $opts->{'baudrate'} // 115200;
+	$self->{'parity'}		= $opts->{'parity'} // "none";
+	$self->{'databits'}     = $opts->{'databits'} // 8;
+	$self->{'stopbits'}     = $opts->{'stopbits'} // 1;
+	$self->{'handshake'}    = $opts->{'handshake'} // "none";
+
+	# Vars
+	$self->{'id'}			= undef;
+	$self->{'serial'}		= undef;
+	$self->{select} 		= IO::Select->new();
+
 	return $self;
 }
 
@@ -40,49 +44,8 @@ sub id {
 }
 
 sub init {
-	my($self,$controller,$id) = @_;
-
-	$self->{controller} = $controller;
-	$self->{id} = $id;
-
-	$self->start();
-
-	return $self;
-}
-
-sub restart {
 	my($self) = @_;
-	$self->{log}->info("Restarting " . $self->{device});
-	#$self->shutdown();
-	if(defined $self->{'sendthr'}) {
-		if($self->{'sendthr'}->is_joinable()) {
-			$self->{'sendthr'}->join();
-		} else {
-			$self->{'sendthr'}->kill('KILL')->join();
-		}
-		$self->{'sendthr'} = undef;
-	}
-	if(defined $self->{'recvthr'}) {
-		if($self->{'recvthr'}->is_joinable()) {
-			$self->{'recvthr'}->join();
-		} else {
-			$self->{'recvthr'}->kill('KILL')->join();
-		}
-		$self->{'recvthr'} = undef;
-	}
-	if(defined $self->{'serial'}) {
-		$self->{'serial'}->close();
-		$self->{'serial'} = undef;
-	}
-	if(defined $self->{inqueue}) {
-		$self->{inqueue}->end();
-		$self->{inqueue} = undef;
-	}
-	return $self->start();
-}
-
-sub start {
-	my($self) = @_;
+	$self->{id} = $self->{mmq}->id();
 
 	# open..
 	$self->{serial} = new Device::SerialPort($self->{device}); 
@@ -102,102 +65,33 @@ sub start {
 	$self->{serial}->read_const_time(500);       # 500 milliseconds = 0.5 seconds
 	$self->{serial}->read_char_time(5);          # avg time between read char
 	$self->{serial}->purge_all();
-	
-	$self->{inqueue} = Thread::Queue->new();
 
-	# Start receive thread
-	$self->{'recvthr'} = threads->create(
-		 sub { $SIG{'KILL'} = sub { threads->exit(); }; $self->receive_thr(); }
-	);
-	# Start send thread
-	$self->{'sendthr'} = threads->create(
-		 sub { $SIG{'KILL'} = sub { threads->exit(); }; $self->send_thr(); }
-	);
-	$self->{log}->info("Connected");
+	$self->{select}->add($self->{serial}->FILENO);
+	$self->{select}->add($self->{mmq}->getSocket());
+
+	$self->{log}->info(__PACKAGE__ . " initialized (" . $self->{id} . ")");
 	return $self;
-}
-
-sub status {
-	my($self) = @_;
-	return 1 unless defined $self->{'sendthr'};
-	return 1 unless defined $self->{'recvthr'};
-	my $status = 0;
-	if($self->{'sendthr'}->is_joinable()) {
-		$self->{'sendthr'}->join();
-		$self->{'sendthr'} = undef;
-		$status = 1;
-	}
-	if($self->{'recvthr'}->is_joinable()) {
-		$self->{'recvthr'}->join();
-		$self->{'recvthr'} = undef;
-		$status = 1;
-	}
-	return $status;
 }
 
 sub send {
 	my($self,$msg) = @_;
-	if(defined $self->{inqueue}) {
-		$self->{inqueue}->enqueue($msg);
-	}
+	$self->{'serial'}->write("$msg\r\n");
 	return $self;
 }
 
-sub shutdown {
+sub run {
 	my($self) = @_;
-	if(defined $self->{inqueue}) {
-		$self->{'inqueue'}->enqueue({ type => "SHUTDOWN"}); 
-	}
-}
-
-sub send_thr {
-	my($self) = @_;
-	while (defined(my $msg = $self->{inqueue}->dequeue())) {
-		last if $msg->{type} eq 'SHUTDOWN';
-		if($msg->{type} eq 'RADIO') {
-			my $data = $msg->{data};
-			$self->{log}->info("Sending: $data");
-			my $size = $self->{serial}->write("$data\n");
-			if($size != length("$data\n")) {
-				$self->{log}->error("Failed to write message");
-			}
-		}
-	}
-	$self->{'serial'}->close();
-	$self->{'serial'} = undef;
-	$self->{log}->warn("Exit...");
-}
-
-sub receive_thr {
-	my($self) = @_;
-	return unless defined $self->{'serial'};
-	return unless defined $self->{'controller'};
-
-	# receive a response of up to 256 characters from server
 	my $msg = "";
 	while(1) {
+		my(@r) = $self->{select}->can_read(1);
 		my $response = "";
-
-		# Message timeout.
-		my $status;
-		eval {
-			local $SIG{ALRM} = sub { }; # do nothing but interrupt the syscall.
-			alarm($self->{'timeout'}*2); # Only half the timeout
-			while(1) {
-				my $b = $self->{'serial'}->read(1);
-				last unless defined $b;
-				$response .= $b;
-				last if $b =~ /[\r\n]/;
+		foreach my $fd (@r) {
+			if($fd eq $self->{serial}->FILENO) {
+				my $b = $self->{'serial'}->read(10);
+				if(defined $b) {
+					$response .= $b;
+				}
 			}
-			alarm(0);
-		};
-		alarm(0); # race cond.
-
-		if($response eq '') {
-			$self->shutdown(); 
-			$self->{'controller'}->shutdown(); 
-			$self->{log}->warn("Exit...");
-			last;
 		}
 
 		# Split messages up based on '\n'. Only process messages
@@ -213,12 +107,13 @@ sub receive_thr {
 			$msg .= $response;
 		}
 		for ( grep { length > 8 && !/^#/ } @msgs ) { 
-			$self->{log}->debug("received: '$_'");
-			$self->{'controller'}->receive({ type => "RADIO", data => $_ }); 
+			#print "Serial: '$_'\n";
+			$self->{mmq}->send({ radio => $self->{mmq}->id(), data => $_ },'MySensors::Controller::receive');
 		}
+
+		# handle MMQ
+		$self->{mmq}->once(0.01);
 	}
-	$self->{'serial'}->close();
-	$self->{'serial'} = undef;
 }
 
 1;

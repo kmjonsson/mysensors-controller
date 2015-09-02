@@ -2,10 +2,13 @@
 # Mattith plugin
 #
 
-package MySensors::Plugins::Mattith;
+package MySensors::Plugin::Mattith;
 
 use strict;
 use warnings;
+
+use base 'MySensors::Plugin';
+
 use MySensors::Const;
 
 use Digest::MD5  qw(md5 md5_hex md5_base64);
@@ -13,33 +16,27 @@ use IO::Socket::INET;
 
 sub new {
 	my($class,$opts) = @_;
+	$opts //= {};
+	$opts->{name} = __PACKAGE__;
+	my $self = $class->SUPER::new($opts);
 
-	my $self  = {
-		# opts
-		'host' => $opts->{'host'},
-		'defaultpass' => $opts->{'defaultpass'},
-		'passfile' => $opts->{'passfile'},
-		'sensorprefix' => $opts->{'sensorprefix'} // "50.00.00.01.00.00",
-		# vars
-		'controller' => undef,
-		'log' => Log::Log4perl->get_logger(__PACKAGE__),
-		'socket' => undef,
-		'passwords' => {},
-	};
-	bless ($self, $class);
+	# Opts
+	$self->{host} = $opts->{'host'};
+	$self->{passfile} = $opts->{'passfile'};
+	$self->{sensorprefix} = $opts->{'sensorprefix'} // "50.00.00.01.00.00";
+
+	# Vars
+	$self->{socket} = undef;
+	$self->{passwords} = {};
+	return $self;
+}
+
+sub init {
+	my($self) = @_;
 	$self->_connect();
 	$self->{log}->info(__PACKAGE__ . " initialized");
-	return $self;
 }
 
-sub register {
-	my($self,$controller) = @_;
-	$self->{controller} = $controller;
-	$controller->register('saveValue',$self);
-	$controller->register('saveVersion',$self);
-	$controller->register('saveBatteryLevel',$self);
-	return $self;
-}
 sub _sensorid {
 	my ($self,$node, $sensorid) = @_;
 	return sprintf("%s.%02X.%02X",$self->{sensorprefix},$node,$sensorid);

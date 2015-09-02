@@ -2,10 +2,12 @@
 # RRD Plugin
 #
 
-package MySensors::Plugins::RRD;
+package MySensors::Plugin::RRD;
 
 use strict;
 use warnings;
+
+use base 'MySensors::Plugin';
 
 use MySensors::Const;
 
@@ -14,23 +16,12 @@ use File::Copy;
 
 sub new {
 	my($class,$opts) = @_;
-
-	my $self  = {
-		'controller' => undef,
-		'path'       => $opts->{path},
-		'template'   => $opts->{template},
-		'log' => Log::Log4perl->get_logger(__PACKAGE__),
-	};
-	bless ($self, $class);
-	$self->{log}->info(__PACKAGE__ . " initialized");
-	return $self;
-}
-
-sub register {
-	my($self,$controller) = @_;
-	$self->{controller} = $controller;
-	$controller->register('saveValue',$self);
-	$controller->register('saveBatteryLevel',$self);
+	$opts //= {};
+	$opts->{name} = __PACKAGE__;
+	my $self = $class->SUPER::new($opts);
+	$self->{cfg}      = $opts->{cfg};
+	$self->{path}     = $opts->{path};
+	$self->{template} = $opts->{template};
 	return $self;
 }
 
@@ -47,16 +38,16 @@ sub _createRRD {
 	my $ds;
 	my @rra;
 	my $step;
-	if($self->{controller}->{cfg}->SectionExists("MySensors::Plugins::RRD Template $ts")) {
-		$ds  = $self->{controller}->{cfg}->val("MySensors::Plugins::RRD Template $ts",'ds');
-		@rra = $self->{controller}->{cfg}->val("MySensors::Plugins::RRD Template $ts",'rra');
-		$step= $self->{controller}->{cfg}->val("MySensors::Plugins::RRD Template $ts",'step');
-	} elsif($self->{controller}->{cfg}->SectionExists("MySensors::Plugins::RRD Template")) {
-		$ds  = $self->{controller}->{cfg}->val("MySensors::Plugins::RRD Template",'ds');
-		@rra = $self->{controller}->{cfg}->val("MySensors::Plugins::RRD Template",'rra');
-		$step= $self->{controller}->{cfg}->val("MySensors::Plugins::RRD Template",'step');
+	if($self->{cfg}->SectionExists("MySensors::Plugin::RRD Template $ts")) {
+		$ds  = $self->{cfg}->val("MySensors::Plugin::RRD Template $ts",'ds');
+		@rra = $self->{cfg}->val("MySensors::Plugin::RRD Template $ts",'rra');
+		$step= $self->{cfg}->val("MySensors::Plugin::RRD Template $ts",'step');
+	} elsif($self->{cfg}->SectionExists("MySensors::Plugin::RRD Template")) {
+		$ds  = $self->{cfg}->val("MySensors::Plugin::RRD Template",'ds');
+		@rra = $self->{cfg}->val("MySensors::Plugin::RRD Template",'rra');
+		$step= $self->{cfg}->val("MySensors::Plugin::RRD Template",'step');
 	} else {
-		$self->{log}->error("'MySensors::Plugins::RRD Template' section is not defined");
+		$self->{log}->error("'MySensors::Plugin::RRD Template' section is not defined");
 		return;
 	}
 	if(!defined $ds) {
@@ -98,7 +89,7 @@ sub saveValue {
 	my($self,$nodeid,$sensor,$type,$value) = @_;
 	$self->{log}->debug("RRD $nodeid,$sensor,$type,$value");
 	my $file = $self->{path} . "/$nodeid-$sensor-$type.rrd";
-	my($id) = $self->{controller}->backend()->getValue($nodeid,$sensor,MySensors::Const::SetReq('VAR4')); # Should be ID after next release of MySensors
+	my($id) = $self->{mmq}->rpc('MySensors::Backend::getValue', { node => $nodeid, sensor => $sensor, type => MySensors::Const::SetReq('VAR4')}); # Should be ID after next release of MySensors
 	if(defined $id) {
 		$self->{log}->debug("Resolved $nodeid-$sensor to $id from its VAR4 (".MySensors::Const::SetReq('VAR4').")");
 		$file = $self->{path} . "/$id.rrd";

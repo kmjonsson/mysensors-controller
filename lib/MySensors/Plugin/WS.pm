@@ -2,13 +2,15 @@
 # WS Plugin 
 #
 
-package MySensors::Plugins::WS;
+package MySensors::Plugin::WS;
 
 use forks;
 use forks::shared;
 
 use strict;
 use warnings;
+
+use base 'MySensors::Plugin';
 
 use HTTP::Daemon;
 use HTTP::Status qw(:constants);
@@ -20,17 +22,18 @@ use JSON;
 
 sub new {
 	my($class,$opts) = @_;
-	
-	my %data :shared;
-	my $self = {
-		'controller' => undef,
-		'port' => $opts->{port} // 9998,
-		'log' => Log::Log4perl->get_logger(__PACKAGE__),
-		'data' => \%data,
-	};
-	bless ($self, $class);
-	$self->{log}->info(__PACKAGE__ . " initialized");
+	$opts //= {};
+	$opts->{name} = __PACKAGE__;
+	my $self = $class->SUPER::new($opts);
+	$self->{port} = $opts->{port} // 9998;
 	return $self;
+}
+
+sub init {
+	my($self) = @_;
+	my %data :shared;
+	$self->{data} = \%data;
+	$self->{log}->info(__PACKAGE__ . " initialized");
 }
 
 sub register {
