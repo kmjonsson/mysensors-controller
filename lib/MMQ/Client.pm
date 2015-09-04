@@ -249,6 +249,7 @@ sub process {
 	my($self) = @_;
 	my $msg;
 	$self->{client}->recv($msg,1024,MSG_DONTWAIT);
+	printf "Got: $msg (%d) {$$}\n",length($msg) if $self->{debug};
 	return unless $msg;
 	return unless length($msg);
 	$self->{indata} .= $msg;

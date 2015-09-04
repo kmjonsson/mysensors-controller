@@ -89,6 +89,10 @@ sub run {
 
 sub once {
 	my($self,@args) = @_;
+	if(!defined $self->{mmq}->{client}) { 
+		my($package, $filename, $line) = caller; 
+		die "DIEx: $package, $filename, $line ..."; 
+	}
 	return $self->{mmq}->once(@args);
 }
 

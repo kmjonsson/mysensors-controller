@@ -4,9 +4,6 @@
 
 package MySensors::Plugin::WS;
 
-use forks;
-use forks::shared;
-
 use strict;
 use warnings;
 
@@ -26,51 +23,66 @@ sub new {
 	$opts->{name} = __PACKAGE__;
 	my $self = $class->SUPER::new($opts);
 	$self->{port} = $opts->{port} // 9998;
+	$self->{select} = IO::Select->new();
 	return $self;
 }
 
 sub init {
 	my($self) = @_;
-	my %data :shared;
-	$self->{data} = \%data;
-	$self->{log}->info(__PACKAGE__ . " initialized");
-}
-
-sub register {
-	my($self,$controller) = @_;
-	$self->{controller} = $controller;
-
-	# Get :shared pointer to Node config and current Values.
-	$self->{data}->{nodes}  = $self->{controller}->{backend}->getNodes();
-	$self->{data}->{values} = $self->{controller}->{backend}->getValues();
-
-	threads->create( sub { $self->thread(); } );
-	return $self;
-}
-
-sub thread {
-	my($self) = @_;
+	$self->{data} = {};
 	$self->{daemon} = HTTP::Daemon->new(LocalAddr => '0.0.0.0',
 										  LocalPort => $self->{port},
 										  Listen => 20,
 										  ReuseAddr => 1);
 
-	if(!defined $self->{daemon}) {
-		$self->{log}->error("Failed to init HTTP::Daemon :-(, failing");
-		return;
-	}
-	$self->{log}->info(sprintf("WS Init complete. Adress: http://%s:%d/",$self->{daemon}->sockhost(),$self->{daemon}->sockport()));
+	$self->{select}->add($self->{mmq}->getSocket());
+	$self->{select}->add($self->{daemon});
 
-	my $select = IO::Select->new();
-	$select->add($self->{daemon});
+	$self->{log}->info(__PACKAGE__ . " initialized");
+}
+
+sub saveNodes {
+	my($self,$nodes) = @_;
+	$self->{nodes} = $nodes;
+}
+
+sub saveValues {
+	my($self,$values) = @_;
+	$self->{values} = $values;
+}
+
+sub run {
+	my($self) = @_;
+
+	# Get :shared pointer to Node config and current Values.
+	$self->{data}->{nodes}  = $self->getNodes();
+	$self->{data}->{values} = $self->getValues();
+
+	$SIG{CHLD} = 'IGNORE';
+	$SIG{PIPE} = 'IGNORE';
+
+	$self->{log}->info(sprintf("WS Init complete. Adress: http://%s:%d/",$self->{daemon}->sockhost(),$self->{daemon}->sockport()));
+	#$self->{mmq}->{mmq}->{debug} = 1;
 	while(1) {
-		if($select->can_read(30)) {
-			if (my $c = $self->{daemon}->accept) {
-				threads->create(\&process_one_req, $self,$c)->detach();
+		foreach my $s ($self->{select}->can_read(1)) {
+			# handle request
+			if($s eq $self->{daemon}) {
+				if (my $c = $self->{daemon}->accept) {
+					my $pid = fork();
+					if(defined $pid && $pid == 0) {
+						$SIG{'ALRM'} = sub { exit; };
+						alarm(5);
+						$self->process_one_req($c);
+						exit(0);
+					}
+					$c->close();
+				}
 			}
 		}
-		$_->join() foreach (threads->list(threads::joinable));
+		# look at the queue
+		$self->{mmq}->once(0.01);
 	}
+	return $self;
 }
 
 sub res {
@@ -123,7 +135,6 @@ sub printTree {
 
 sub process_one_req {
 	my($self,$client) = @_;
-	$self->{log}->debug("Thread/fork started $$");
 	while(my $request = $client->get_request) {
 		if ($request->method eq "GET") {
 			$client->send_response($self->process_req($request));
@@ -132,8 +143,6 @@ sub process_one_req {
 		}
 	}
 	$client->close;
-	undef($client);
-	$self->{log}->debug("Thread/fork completed $$");
 }
 
 sub process_req {

@@ -79,15 +79,20 @@ my $log = Log::Log4perl->get_logger(__PACKAGE__) || croak "Can't init log";
 
 $0 = 'MySensors';
 my %children;
+my $masterpid = $$;
 
 $SIG{HUP} = $SIG{KILL} = sub {
-	kill 'HUP', sort keys %children;
-	exit(1);
+	if($$ == $masterpid) {
+		kill 'HUP', sort keys %children;
+		exit(1);
+	}
 };
 
 END {
-	kill 'HUP', sort keys %children;
-	exit(1);
+	if($$ == $masterpid) {
+		kill 'HUP', sort keys %children;
+		exit(1);
+	}
 };
 
 # Fork off MMQ-Server
@@ -164,6 +169,7 @@ foreach my $module (sort @modules) {
 }
 
 sleep(2);
+
 $mmq->connect() || die;
 
 foreach my $module ('MySensors::Controller', sort @modules) {
@@ -184,7 +190,5 @@ foreach my $module ('MySensors::Controller', sort @modules) {
 	$log->info("$module started");
 }
 
-while(sleep(60)) {
-	# do nothing...
-}
-
+my $pid = wait();
+$log->error("$pid ($children{$pid}) died... exiting");

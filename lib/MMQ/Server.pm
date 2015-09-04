@@ -16,7 +16,6 @@ use JSON;
 sub random_key {
 	my $key = md5_base64(scalar localtime(time) . "MMQ" . rand());
 	$key =~ s,[^A-Z0-9a-z],,g;
-	# $key = 'wLxLJvKI7gMqLeZyA76Nw';
 	return $key;
 }
 

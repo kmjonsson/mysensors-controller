@@ -35,6 +35,8 @@ sub _init {
 	$self->{mmq}->subscribe('MySensors::Plugins::saveSketchVersion', sub { my($self,$queue,$data) = @_; $self->saveSketchVersion(@{$data}); }, $self ) if $self->can('saveSketchVersion');
 	$self->{mmq}->subscribe('MySensors::Plugins::saveVersion', sub { my($self,$queue,$data) = @_; $self->saveVersion(@{$data}); }, $self ) if $self->can('saveVersion');
 	$self->{mmq}->subscribe('MySensors::Plugins::process', sub { my($self,$queue,$data) = @_; $self->process(@{$data}); }, $self ) if $self->can('process');
+	$self->{mmq}->subscribe('MySensors::Plugins::saveNodes', sub { my($self,$queue,$data) = @_; $self->saveNodes(@{$data}); }, $self ) if $self->can('saveNodes');
+	$self->{mmq}->subscribe('MySensors::Plugins::saveValues', sub { my($self,$queue,$data) = @_; $self->saveValues(@{$data}); }, $self ) if $self->can('saveValues');
 	if($self->can('init')) {
 		$self->init();
 	}
@@ -44,6 +46,16 @@ sub run {
 	my($self) = @_;
 	$self->{mmq}->run();
 }
+
+sub getNodes {
+	my($self) = @_;
+	return $self->{mmq}->rpc('MySensors::Backend::getNodes');
+}	
+
+sub getValues {
+	my($self) = @_;
+	return $self->{mmq}->rpc('MySensors::Backend::getValues');
+}	
 
 1;
 

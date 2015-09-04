@@ -4,8 +4,6 @@
 
 package MySensors::Backend::TXT2;
 
-use threads::shared;
-
 use strict;
 use warnings;
 
@@ -99,10 +97,11 @@ sub _load {
 			$values{$val}->{lastseenvia} = {};
 		}
 	}
-	$self->{nodes}  = shared_clone(\%nodes);
-	$self->{values} = shared_clone(\%values);
+	$self->{nodes}  = \%nodes;
+	$self->{values} = \%values;
 	# send data to MySensors::Backend::Nodes and/or Values
-	# $self->{controller}->receive({type => 'CONFIG'});
+	$self->sendNodes($self->getNodes());
+	$self->sendValues($self->getValues());
 	return $self;
 }
 
@@ -135,7 +134,7 @@ sub _save {
 			return undef;
 	}
 	# send data to MySensors::Backend::Nodes and/or Values
-	# $self->{controller}->receive({type => 'CONFIG'});
+	$self->sendNodes($self->getNodes());
 	return $self->_saveValues($node);
 }
 
@@ -167,21 +166,20 @@ sub _saveValues {
 			unlink($self->{datadir} . "$node/values.json.new"); # || ignore :-/
 			return undef;
 	}
+	$self->sendValues($self->getValues());
 }
 
 sub _initNode {
 	my($self,$nodeid) = @_;
 	if(!defined $self->{nodes}->{$nodeid}) {
-		my %sensors :shared;
-		my %lastseenvia :shared;
-		my %nodes :shared = (
+		my %nodes = (
 			'protocol'      => undef,
 			'version'       => undef,
 			'sketchversion' => undef,
 			'sketchname'    => undef,
 			'savelog'       => 'yes',
-			'sensors'	    => \%sensors,
-			'lastseenvia'   => \%lastseenvia,
+			'sensors'	    => {},
+			'lastseenvia'   => {},
 		);
 		$self->{nodes}->{$nodeid} = \%nodes;
 		$self->lastseen($nodeid);
@@ -196,10 +194,9 @@ sub _initSensor {
 	my($self,$nodeid,$sensor) = @_;
 	$self->_initNode($nodeid);
 	if(!defined $self->{nodes}->{$nodeid}->{sensors}->{$sensor}) {
-		my %types  :shared;
-		my %sensor :shared = (
+		my %sensor = (
 			'type'          => undef,
-			'types'         => \%types,
+			'types'         => {},
 			'description'   => ($nodeid == 255?'Node':undef),
 			'savelog'       => 'parent',
 		);
@@ -215,8 +212,7 @@ sub _initType {
 	my($self,$nodeid,$sensor,$type) = @_;
 	$self->_initSensor($nodeid,$sensor);
 	if(!defined $self->{nodes}->{$nodeid}->{sensors}->{$sensor}->{types}->{$type}) {
-		my %types  :shared;
-		my %type :shared = (
+		my %type = (
 			'description'   => MySensors::Const::SetReqToStr($type),
 		);
 		$self->{nodes}->{$nodeid}->{sensors}->{$sensor}->{types}->{$type} //= \%type;
@@ -325,22 +321,13 @@ sub nodeexists {
 sub lastseen {
 	my($self,$nodeid,$sensorid,$type) = @_;
 	if(defined $nodeid) {
-		my %sensors :shared;
-		my %node :shared = (
-			sensors => \%sensors
-		);
-		$self->{values}->{$nodeid} //= \%node;
+		$self->{values}->{$nodeid} //= { sensors => {} };
 		$self->{values}->{$nodeid}->{lastseen} = time;
 		if(defined $sensorid) {
-			my %types :shared;
-			my %sensor :shared = (
-				types => \%types
-			);
-			$self->{values}->{$nodeid}->{sensors}->{$sensorid} //= \%sensor;
+			$self->{values}->{$nodeid}->{sensors}->{$sensorid} //= { types => {} };
 			$self->{values}->{$nodeid}->{sensors}->{$sensorid}->{lastseen} = time;
 			if(defined $type) {
-				my %type :shared;
-				$self->{values}->{$nodeid}->{sensors}->{$sensorid}->{types}->{$type} //= \%type if defined $type;
+				$self->{values}->{$nodeid}->{sensors}->{$sensorid}->{types}->{$type} //= {} if defined $type;
 				$self->{values}->{$nodeid}->{sensors}->{$sensorid}->{types}->{$type}->{lastseen} = time;
 			}
 		}
@@ -358,15 +345,8 @@ sub lastseenvia {
 		return;
 	}
 	if(defined $nodeid && defined $vianode) {
-		my %lastseenvia :shared;
-		my %node :shared = (
-			lastseenvia => \%lastseenvia
-		);
-		$self->{values}->{$nodeid} //= \%node;
-
-		if (!defined $self->{values}->{$nodeid}->{lastseenvia}) {
-			$self->{values}->{$nodeid}->{lastseenvia} = {};
-		}
+		$self->{values}->{$nodeid} //= { lastseenvia => {} };
+		$self->{values}->{$nodeid}->{lastseenvia} //= {};
 		$self->{values}->{$nodeid}->{lastseenvia}->{$vianode} = time;
 		$self->{log}->debug("updated lastseenvia");
 	}
