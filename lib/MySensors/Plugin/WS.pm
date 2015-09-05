@@ -43,20 +43,22 @@ sub init {
 
 sub saveNodes {
 	my($self,$nodes) = @_;
-	$self->{nodes} = $nodes;
+	$self->{log}->info("Got nodes :-) $nodes");
+	$self->{data}->{nodes} = $nodes;
 }
 
 sub saveValues {
 	my($self,$values) = @_;
-	$self->{values} = $values;
+	$self->{log}->info("Got values :-) $values");
+	$self->{data}->{values} = $values;
 }
 
 sub run {
 	my($self) = @_;
 
 	# Get :shared pointer to Node config and current Values.
-	$self->{data}->{nodes}  = $self->getNodes();
-	$self->{data}->{values} = $self->getValues();
+	#$self->{data}->{nodes}  = $self->getNodes();
+	#$self->{data}->{values} = $self->getValues();
 
 	$SIG{CHLD} = 'IGNORE';
 	$SIG{PIPE} = 'IGNORE';

@@ -182,6 +182,8 @@ foreach my $module ('MySensors::Controller', sort @modules) {
 			exit(1);
 		}
 	}
+}
+foreach my $module ('MySensors::Controller', sort @modules) {
 	if(!defined $mmq->rpc($module . '::start')) {
 			kill 'HUP', sort keys %children;
 			$log->error("$module failed to start");

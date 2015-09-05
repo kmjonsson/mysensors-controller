@@ -134,6 +134,7 @@ sub process {
 		# DEBUG
 		print "M: $m\n" if $self->{debug};
 		my $msg = eval { decode_json(decode("UTF-8",decode_base64($m))) };
+		print "Can't decode: $m\n" unless defined $msg;
 		print "MSG: " . Dumper($msg) if $self->{debug};
 		return if(!defined $msg);
 		return if(ref($msg) ne 'HASH');
@@ -217,6 +218,7 @@ sub process {
 				print Dumper($c) if $self->{debug};
 				$self->sendMsg($c,$msg);
 			}
+			#print "YES! OK: $msg->{id} for $msg->{queue}\n" if $msg->{queue} =~ /MySensors::Controller/;
 			$self->sendMsg($client,{
 				id => $msg->{id},
 				type => 'STATUS',
@@ -245,13 +247,14 @@ sub process {
 		}
 		if($msg->{type} eq 'RPR') {
 			return if(!defined $msg->{client});
+			return if(!defined $msg->{client_id});
 			foreach my $c (values %{$self->{clients}}) {
 				printf "Checking client: %d\n",$c->{id} if $self->{debug};
 				next unless $c->{auth};
 				next if $c eq $client;
 				next if $c->{id} ne $msg->{client};
 				$self->sendMsg($c,{
-					id => $msg->{id},
+					id => $msg->{client_id},
 					type => 'STATUS',
 					status => 'OK',
 					data => $msg->{data},

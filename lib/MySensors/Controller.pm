@@ -324,6 +324,7 @@ sub _init {
 sub run {
 	my($self) = @_;
 	$self->{log}->info("Controller: is running :-)\n");
+	#$self->{mmq}->{mmq}->{x_debug} = 1;
 	while(!$self->{mmq}->once(60)) {
 		#$self->sendVersionCheck();
 	}

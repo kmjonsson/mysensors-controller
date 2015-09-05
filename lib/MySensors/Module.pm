@@ -28,11 +28,11 @@ sub start {
 	$self->{mmq}->rpc_subscribe($self->{_name} . '::ping',  sub { return 'pong'; }, $self );
 	$self->{mmq}->rpc_subscribe($self->{_name} . '::start', sub { my($self) = @_; $self->{_start} = 1; return 'OK'; }, $self );
 	$self->{mmq}->rpc_subscribe($self->{_name} . '::stop',  sub { my($self) = @_; $self->{_stop}  = 1; return 'OK'; }, $self );
-	if($self->can('_init')) {
-		$self->_init();
-	}
 	while(!$self->{_start}) {
 		last unless $self->{mmq}->once()
+	}
+	if($self->can('_init')) {
+		$self->_init();
 	}
 	$self->run();
 }

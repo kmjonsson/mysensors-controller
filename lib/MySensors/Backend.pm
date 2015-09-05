@@ -48,12 +48,12 @@ sub run {
 
 sub sendNodes {
 	my($self,$nodes) = @_;
-	$self->{mmq}->send($nodes,'MySensors::Backend::saveNodes');
+	$self->{mmq}->send($nodes,'MySensors::Plugin::saveNodes');
 }
 
 sub sendValues {
 	my($self,$values) = @_;
-	$self->{mmq}->send($values,'MySensors::Backend::saveValues');
+	$self->{mmq}->send($values,'MySensors::Plugin::saveValues');
 }
 
 1;

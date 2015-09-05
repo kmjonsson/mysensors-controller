@@ -63,12 +63,13 @@ sub send {
 		'queue' => $queue,
 		'data' => $data,
 	});
-	return $self->waitId($id);
+	my $r = $self->waitId($id);
+	$self->{log}->error("Timeout: PACKET ($queue) Data:" . Dumper($data)) unless defined $r;
+	return $r;
 }
 
 sub rpc {
 	my($self,$rpc,$data) = @_;
-	$rpc //= '*';
 	my $id = $self->sendMsg({
 		'type' => 'RPC',
 		'rpc' => $rpc,
@@ -84,8 +85,8 @@ sub rpc {
 sub waitId {
 	my($self,$id) = @_;
 	print "Wait for $id\n" if $self->{debug};
+	my($package, $filename, $line) = caller;
 	if(!defined $self->{client}) {
-		 my($package, $filename, $line) = caller;
 		 die "waitId: $package, $filename, $line ...";
 	}
 	my $t = $self->{timeout} + time;
@@ -93,10 +94,11 @@ sub waitId {
 		$self->once(1);
 		if(defined $self->{status}->{$id}) {
 			my $msg = $self->{status}->{$id};
-			$self->{status} = {};
+			delete $self->{status}->{$id};
 			return $msg;
 		}
 	}
+	$self->{log}->error("Timeout :-( msg: $id from ($package, $filename, $line)");
 	print "timeout :-(\n" if $self->{debug};
 	return;
 }
@@ -165,7 +167,7 @@ sub sendMsg {
 	my $id = $msg->{id} = $msg->{id} // $self->{sendseq}++;
 	print 'Sending:' . Dumper($msg) if $self->{debug};
 	$msg = encode_base64(encode("UTF-8",encode_json($msg)));
-	$msg =~ s,[\r\n],,mg;
+	$msg =~ s,[\r\n]+,,mg;
 	push @{$self->{send}},"$msg\r\n";
 	print "Sending: $msg\n" if $self->{debug};
 	return $id;
@@ -270,6 +272,7 @@ sub process {
 		return if(!defined $msg->{type});
 
 		print Dumper($msg) if $self->{debug};
+		print Dumper($msg) if $self->{x_debug};
 
 		# status..
 		if($msg->{type} eq 'STATUS') {
@@ -293,12 +296,12 @@ sub process {
 				my $rpc = $self->{rpc}->{$msg->{rpc}};
 				my $result = eval { &{$rpc->{rpc}}($rpc->{self},$msg->{data}) };
 				if(!defined $result && length $@) {
-					$self->error(sprintf("Callback error (rpc):  %d %s %s - %s",$self->{id},$msg->{rpc},$msg->{data},$@));
+					$self->{log}->error(sprintf("Callback error (rpc):  %d %s %s - %s",$self->{id},$msg->{rpc},$msg->{data},$@));
 				}
 				$self->sendMsg({
 					type => 'RPR',
 					client => $msg->{client},
-					id => $msg->{id},
+					client_id => $msg->{id},
 					data => $result,
 				});
 			}
@@ -314,7 +317,7 @@ sub process {
 			next unless defined $callback;
 			my $result = eval { &{$callback->{callback}}($callback->{self},$msg->{data},$msg->{queue}) };
 			if(!defined $result && length $@) {
-				$self->error(sprintf("Callback error:  %d %s %s - %s",$self->{id},$msg->{queue},$msg->{data},$@));
+				$self->{log}->error(sprintf("Callback error:  %d %s %s - %s",$self->{id},$msg->{queue},$msg->{data},$@));
 			}
 			next;
 		}
