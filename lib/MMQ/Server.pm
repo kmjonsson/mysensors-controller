@@ -10,6 +10,7 @@ use MIME::Base64 qw(encode_base64 decode_base64);
 use Encode qw(encode decode);
 use Digest::MD5 qw(md5_base64);
 use Data::Dumper;
+use Log::Log4perl;
 
 use JSON;
 
@@ -30,6 +31,7 @@ sub new {
 			'clients'  => {},
 			'idcount'  => 0,
 			'sendseq'  => 1,
+			'log'   => Log::Log4perl->get_logger(__PACKAGE__),
 	};
 	bless ($self, $class);
 	$self->{server} = IO::Socket::INET->new( Proto     => 'tcp',

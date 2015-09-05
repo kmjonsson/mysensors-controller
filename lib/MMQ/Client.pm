@@ -11,6 +11,7 @@ use MIME::Base64 qw(encode_base64 decode_base64);
 use Encode qw(encode decode);
 use JSON;
 use Data::Dumper;
+use Log::Log4perl;
 
 sub new {
 	my($class) = shift;
@@ -32,6 +33,7 @@ sub new {
 			id		=> undef,
 			status  => {},
 			queues  => {},
+			'log'   => Log::Log4perl->get_logger(__PACKAGE__),
 	};
 	bless ($self, $class);
 	return $self->connect() unless defined $opts->{noconnect};
@@ -290,6 +292,9 @@ sub process {
 			if(defined $self->{rpc}->{$msg->{rpc}}) {
 				my $rpc = $self->{rpc}->{$msg->{rpc}};
 				my $result = eval { &{$rpc->{rpc}}($rpc->{self},$msg->{data}) };
+				if(!defined $result && length $@) {
+					$self->error(sprintf("Callback error (rpc):  %d %s %s - %s",$self->{id},$msg->{rpc},$msg->{data},$@));
+				}
 				$self->sendMsg({
 					type => 'RPR',
 					client => $msg->{client},
@@ -308,6 +313,9 @@ sub process {
 			printf("G: %d %s %s ($callback)\n",$self->{id},$msg->{queue},$msg->{data}) if $self->{debug};
 			next unless defined $callback;
 			my $result = eval { &{$callback->{callback}}($callback->{self},$msg->{data},$msg->{queue}) };
+			if(!defined $result && length $@) {
+				$self->error(sprintf("Callback error:  %d %s %s - %s",$self->{id},$msg->{queue},$msg->{data},$@));
+			}
 			next;
 		}
 

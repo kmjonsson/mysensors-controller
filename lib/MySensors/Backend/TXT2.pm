@@ -11,6 +11,8 @@ use JSON;
 
 use base 'MySensors::Backend';
 
+use MySensors::Const;
+
 sub new {
         my($class) = shift;
         my($opts) = shift // {};
@@ -354,6 +356,9 @@ sub lastseenvia {
 
 sub saveValue {
 	my ($self,$nodeid,$sensor,$type,$value) = @_;
+
+	$self->{log}->info("saveValue: node=$nodeid,sensor=$sensor,type=$type,value=$value");
+
 	$value =~ s,[\r\n],<NL>,g;
 
 	$self->_initType($nodeid,$sensor,$type);
@@ -394,6 +399,7 @@ sub saveSketchVersion {
 
 sub saveBatteryLevel {
 	my ($self,$nodeid,$level) = @_;
+	$self->{log}->info("Save battery Level: $nodeid = $level");
 	$self->saveValue($nodeid,255,MySensors::Const::SetReq('VOLTAGE'),$level);
 	return;
 }
