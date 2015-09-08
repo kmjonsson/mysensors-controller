@@ -9,6 +9,8 @@ use warnings;
 
 use base 'MySensors::Plugin';
 
+use MySensors::Const;
+
 use Carp;
 use Data::Dumper;
 use POSIX;
