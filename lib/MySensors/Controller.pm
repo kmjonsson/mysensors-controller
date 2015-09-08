@@ -56,7 +56,7 @@ sub new {
 
 sub callBack {
 	my($self,$method,@arg) = @_;
-	$self->{mmq}->send(\@arg,'MySensors::Controller::' . $method);
+	$self->{mmq}->send(\@arg,'MySensors::Plugin::' . $method);
 }
 
 # Send an updated config to plugins that needs the config.
