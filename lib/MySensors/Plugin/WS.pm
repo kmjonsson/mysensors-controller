@@ -70,6 +70,8 @@ sub run {
 			# handle request
 			if($s eq $self->{daemon}) {
 				if (my $c = $self->{daemon}->accept) {
+					$self->saveNodes($self->getNodes()) unless defined ($self->{data}->{nodes});
+					$self->saveValues($self->getValues()) unless defined ($self->{data}->{values});
 					my $pid = fork();
 					if(defined $pid && $pid == 0) {
 						$SIG{'ALRM'} = sub { exit; };
