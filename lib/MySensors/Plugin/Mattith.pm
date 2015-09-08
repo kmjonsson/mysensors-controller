@@ -23,6 +23,7 @@ sub new {
 	# Opts
 	$self->{host} = $opts->{'host'};
 	$self->{passfile} = $opts->{'passfile'};
+	$self->{defaultpass} = $opts->{'defaultpass'};
 	$self->{sensorprefix} = $opts->{'sensorprefix'} // "50.00.00.01.00.00";
 
 	# Vars
