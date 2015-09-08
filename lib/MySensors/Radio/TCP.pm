@@ -6,6 +6,8 @@ use forks;
 use strict;
 use warnings;
 
+use base 'MySensors::Radio';
+
 use Thread::Queue;
 
 use IO::Socket::INET;
