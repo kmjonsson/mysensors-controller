@@ -105,11 +105,11 @@ my $mmq;
 if(!$mmqpid) {
 	setpgrp(0,getppid());
 	$0 = 'MySensors::MMQ';
-	$mmq = MySensors::Utils::loadPackage($log,$cfg,'MySensors::MMQ',{cfg => $cfg, log => $log, server => 1, key => 'MyS'}) || croak "Can't init MySensors::MMQ (server)";
+	$mmq = MySensors::Utils::loadPackage($log,$cfg,'MySensors::MMQ',{cfg => $cfg, log => $log, server => 1}) || croak "Can't init MySensors::MMQ (server)";
 	$mmq->run();
 	exit;
 } else {
-	$mmq = MySensors::Utils::loadPackage($log,$cfg,'MySensors::MMQ',{cfg => $cfg, log => $log, server => 0, key => 'MyS'}) || croak "Can't init MySensors::MMQ (client)";
+	$mmq = MySensors::Utils::loadPackage($log,$cfg,'MySensors::MMQ',{cfg => $cfg, log => $log, server => 0}) || croak "Can't init MySensors::MMQ (client)";
 }
 $log->info("MySensors::MMQ forked @ $mmqpid");
 $children{$mmqpid} = 'MySensors::MMQ';

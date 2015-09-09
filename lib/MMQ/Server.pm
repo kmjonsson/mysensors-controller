@@ -72,6 +72,7 @@ sub once {
 				queues  => { '*' => 1 },
 				rpc     => { },
 				error   => 0,
+				snoop   => 0,
 			};
 			$self->{clients}->{$new}->{send} = [ ];
 			$self->{select}->add($new);
@@ -105,6 +106,9 @@ sub sendMsg {
 	print "Send[" . $client->{id}  . "]:". Dumper($msg) if $self->{debug};
 	$msg = encode_base64(encode("UTF-8",encode_json($msg)));
 	$msg =~ s,[\r\n],,mg;
+	foreach my $c (grep { $_->{snoop} == 1 } values %{$self->{clients}}) {
+		push @{$c->{send}},"SNOOP To: [" . $client->{id} . "] $msg\r\n";
+	}
 	push @{$client->{send}},"$msg\r\n";
 }
 
@@ -123,12 +127,25 @@ sub process {
 	}
 	foreach my $m (@rows) {
 		# DEBUG
-		if($m eq 'dump') {
+		if($m =~ /^dump (.*)$/) {
+			return unless $1 eq $self->{key};
 			push @{$client->{send}},Dumper($client) . "\r\n";
 			next;
 		}
-		if($m eq 'dumps') {
+		if($m =~ /^dumps (.*)$/) {
+			return unless $1 eq $self->{key};
 			push @{$client->{send}},Dumper($self->{clients}) . "\r\n";
+			next;
+		}
+		if($m =~ /^snoop (.*)$/) {
+			return unless $1 eq $self->{key};
+			if(!$client->{snoop}) {
+				$client->{snoop} = 1;
+				push @{$client->{send}},"Snoop ON\r\n";
+			} else {
+				$client->{snoop} = 0;
+				push @{$client->{send}},"Snoop OFF\r\n";
+			}
 			next;
 		}
 		# DEBUG
