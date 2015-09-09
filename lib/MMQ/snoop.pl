@@ -13,6 +13,11 @@ use Data::Dumper;
 
 my $key = shift @ARGV // 'password';
 
+my %filter;
+foreach my $f (@ARGV) {
+	$filter{$1} = $2 if $f =~ /^([^=]+)=(.*)$/;
+}
+
 my $client = IO::Socket::INET->new( Proto     => 'tcp',
 									PeerHost => 'localhost',
 									PeerPort => 4344,
@@ -21,77 +26,23 @@ my $client = IO::Socket::INET->new( Proto     => 'tcp',
 print $client "snoop $key\r\n";
 while(<$client>) {
 	s,[\r\n]+,,mg;
-	print "$_\n";
+	#print "$_\n";
 	if(/SNOOP To: \[(\d+)\] (.*)$/) {
 		my($msg) = decode_json(decode("UTF-8",decode_base64($2)));
-		print "To[$1]: ".Dumper($msg);
+		print "To[$1]: ".Dumper($msg) if show($msg,$1);
 	}
 }
 
-__DATA__
-
-	foreach my $m (@rows) {
-		print "R: $m\n" if $self->{debug};
-		my($msg) = decode_json(decode("UTF-8",decode_base64($m)));
-		return if(!defined $msg);
-		return if(ref($msg) ne 'HASH');
-		return if(!defined $msg->{id});
-		return if(!defined $msg->{type});
-
-		print Dumper($msg) if $self->{debug};
-		print Dumper($msg) if $self->{x_debug};
-
-		# status..
-		if($msg->{type} eq 'STATUS') {
-			return unless defined $msg->{status};
-			return unless $msg->{status} eq 'OK';
-			$msg->{_timestamp_} = time;
-			$self->{status}->{$msg->{id}} = $msg;
+sub show {
+	my($msg,$to) = @_;
+	foreach my $key (keys %filter) {
+		my $re = $filter{$key};
+		if($key eq '_to') {
+			return 0 unless $to =~ /$re/;
 			next;
 		}
-
-		# need auth
-		if(!$self->{auth}) {
-			next;
-		}
-
-		# RPC
-		if($msg->{type} eq 'RPC') {
-			return unless defined $msg->{rpc};
-			return unless defined $msg->{client};
-			if(defined $self->{rpc}->{$msg->{rpc}}) {
-				my $rpc = $self->{rpc}->{$msg->{rpc}};
-				my $result = eval { &{$rpc->{rpc}}($rpc->{self},$msg->{data}) };
-				if(!defined $result && length $@) {
-					$self->{log}->error(sprintf("Callback error (rpc):  %d %s %s - %s",$self->{id},$msg->{rpc},$msg->{data},$@));
-				}
-				$self->sendMsg({
-					type => 'RPR',
-					client => $msg->{client},
-					client_id => $msg->{id},
-					data => $result,
-				});
-			}
-			next;
-		}
-
-		# packet
-		if($msg->{type} eq 'PACKET') {
-			return unless defined $msg->{queue};
-			return unless defined $msg->{data};
-			my $callback = $self->{queues}->{$msg->{queue}};
-			printf("G: %d %s %s ($callback)\n",$self->{id},$msg->{queue},$msg->{data}) if $self->{debug};
-			next unless defined $callback;
-			my $result = eval { &{$callback->{callback}}($callback->{self},$msg->{data},$msg->{queue}) };
-			if(!defined $result && length $@) {
-				$self->{log}->error(sprintf("Callback error:  %d %s %s - %s",$self->{id},$msg->{queue},$msg->{data},$@));
-			}
-			next;
-		}
-
-		die "End: $m\n" . Dumper($msg);
+		return 0 unless defined $msg->{$key};
+		return 0 unless $msg->{$key} =~ /$re/;
 	}
 	return 1;
 }
-
-1;
