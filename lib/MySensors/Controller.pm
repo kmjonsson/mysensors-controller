@@ -209,14 +209,14 @@ sub saveSketchName {
 	my($self,$nodeid,$name) = @_;
 	$self->{log}->debug("NodeID: $nodeid name: $name");
 	$self->callBack('saveSketchName', $nodeid, $name);
-	return $self->{mmq}->send({ node => $nodeid, name => $name}, 'MySensors::Backend::saveSketchName');
+	return $self->{mmq}->send({ node => $nodeid, sketchname => $name}, 'MySensors::Backend::saveSketchName');
 }
 
 sub saveSketchVersion {
 	my($self,$nodeid,$version) = @_;
 	$self->{log}->debug("NodeID: $nodeid version: $version");
 	$self->callBack('saveSketchVersion', $nodeid, $version);
-	return $self->{mmq}->send({ node => $nodeid, version => $version}, 'MySensors::Backend::saveSketchVersion');
+	return $self->{mmq}->send({ node => $nodeid, sketchversion => $version}, 'MySensors::Backend::saveSketchVersion');
 }
 
 sub saveVersion {
