@@ -32,7 +32,6 @@ sub _init {
 	$self->{mmq}->subscribe('MySensors::Backend::saveSketchVersion', sub { my($self,$data,$queue) = @_; $self->saveSketchVersion($data->{node},$data->{sketchversion}); }, $self );
 	$self->{mmq}->subscribe('MySensors::Backend::saveBatteryLevel', sub { my($self,$data,$queue) = @_; $self->saveBatteryLevel($data->{node},$data->{batteryLevel}); }, $self );
 	$self->{mmq}->subscribe('MySensors::Backend::saveVersion', sub { my($self,$data,$queue) = @_; $self->saveVersion($data->{node},$data->{version}); }, $self );
-	$self->{mmq}->subscribe('MySensors::Backend::saveVersion', sub { my($self,$data,$queue) = @_; $self->saveVersion($data->{node},$data->{version}); }, $self );
 	$self->{mmq}->subscribe('MySensors::Backend::processLog', sub { my($self,$data,$queue) = @_; $self->processLog($data->{node},$data->{payload}); }, $self );
 	$self->{mmq}->rpc_subscribe('MySensors::Backend::getNextAvailableNodeId', sub { my($self) = @_; return $self->getNextAvailableNodeId(); }, $self );
 	$self->{mmq}->rpc_subscribe('MySensors::Backend::getValue', sub { my($self,$data) = @_; return $self->getValue($data->{node},$data->{sensor},$data->{type}); }, $self );
