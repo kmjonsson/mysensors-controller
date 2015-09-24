@@ -12,7 +12,7 @@ use Encode qw(encode decode);
 use JSON;
 use Data::Dumper;
 use Log::Log4perl;
-use Digest::HMAC_MD5 qw(hmac_md5_hex);
+use Digest::HMAC_SHA1 qw(hmac_sha1_hex);
 
 sub new {
 	my($class) = shift;
@@ -185,6 +185,7 @@ sub connect {
 										PeerPort => $self->{port});
 	return undef unless defined $self->{client};
 	$self->{select}->add($self->{client});
+
 	my $timeout = time + $self->{timeout};
 	while($timeout > time) {
 		$self->once();
@@ -275,7 +276,7 @@ sub process {
 			return unless defined $msg->{challange};
 			my $id = $self->sendMsg({
 					type => 'AUTH',
-					key => hmac_md5_hex($msg->{challange},$self->{key}),
+					key => hmac_sha1_hex($msg->{challange},$self->{key}),
 			});
 			$self->{authId} = $id;
 			next;

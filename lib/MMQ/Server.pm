@@ -11,7 +11,7 @@ use Encode qw(encode decode);
 use Digest::MD5 qw(md5_base64);
 use Data::Dumper;
 use Log::Log4perl;
-use Digest::HMAC_MD5 qw(hmac_md5_hex);
+use Digest::HMAC_SHA1 qw(hmac_sha1_hex);
 
 use JSON;
 
@@ -167,7 +167,7 @@ sub process {
 
 		if($msg->{type} eq 'AUTH') {
 			return if(!defined $msg->{key});
-			if($msg->{key} eq hmac_md5_hex($client->{rkey},$self->{key})) {
+			if($msg->{key} eq hmac_sha1_hex($client->{rkey},$self->{key})) {
 				$client->{auth}  = 1;
 				$self->sendMsg($client,{
 					id => $msg->{id},
