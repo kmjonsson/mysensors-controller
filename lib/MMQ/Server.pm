@@ -11,6 +11,7 @@ use Encode qw(encode decode);
 use Digest::MD5 qw(md5_base64);
 use Data::Dumper;
 use Log::Log4perl;
+use Digest::HMAC_MD5 qw(hmac_md5_hex);
 
 use JSON;
 
@@ -73,9 +74,15 @@ sub once {
 				rpc     => { },
 				error   => 0,
 				snoop   => 0,
+				rkey    => random_key(),
 			};
 			$self->{clients}->{$new}->{send} = [ ];
 			$self->{select}->add($new);
+			$self->sendMsg($self->{clients}->{$new},{
+														type 		=> 'AUTH', 
+														id 			=> $self->{clients}->{$new}->{id}, 
+														challange 	=> $self->{clients}->{$new}->{rkey},
+													});
 		} else {
 			next unless defined $self->{clients}->{$h};
 			my $r = $self->process($self->{clients}->{$h});
@@ -160,7 +167,7 @@ sub process {
 
 		if($msg->{type} eq 'AUTH') {
 			return if(!defined $msg->{key});
-			if($msg->{key} eq $self->{key}) {
+			if($msg->{key} eq hmac_md5_hex($client->{rkey},$self->{key})) {
 				$client->{auth}  = 1;
 				$self->sendMsg($client,{
 					id => $msg->{id},

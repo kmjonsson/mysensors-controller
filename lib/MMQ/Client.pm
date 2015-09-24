@@ -12,6 +12,7 @@ use Encode qw(encode decode);
 use JSON;
 use Data::Dumper;
 use Log::Log4perl;
+use Digest::HMAC_MD5 qw(hmac_md5_hex);
 
 sub new {
 	my($class) = shift;
@@ -103,17 +104,6 @@ sub waitId {
 	return;
 }
 
-sub sendAuth {
-	my($self) = @_;
-	my $id = $self->sendMsg({
-		'type' => 'AUTH',
-		'key' => $self->{key},
-	});
-	my $msg = $self->waitId($id);
-	return unless(defined $msg);
-	return $msg; 
-}
-
 sub rpc_subscribe {
 	my($self,$rpc,$callback,$rpcSelf) = @_;
 	my $id = $self->sendMsg({
@@ -195,12 +185,19 @@ sub connect {
 										PeerPort => $self->{port});
 	return undef unless defined $self->{client};
 	$self->{select}->add($self->{client});
-	my $msg = $self->sendAuth();
-	if(defined $msg) {
+	my $timeout = time + $self->{timeout};
+	while($timeout > time) {
+		$self->once();
+		last if defined $self->{authId};
+	}
+	if($timeout > time) {
+		my $msg = $self->waitId($self->{authId});
+		return unless(defined $msg);
 		$self->{id} = $msg->{client};
 		$self->{auth} = 1;
+		return $self;
 	}
-	return $self;
+	return;
 }
 
 sub sending {
@@ -273,6 +270,16 @@ sub process {
 
 		print Dumper($msg) if $self->{debug};
 		print Dumper($msg) if $self->{x_debug};
+
+		if($msg->{type} eq 'AUTH') {
+			return unless defined $msg->{challange};
+			my $id = $self->sendMsg({
+					type => 'AUTH',
+					key => hmac_md5_hex($msg->{challange},$self->{key}),
+			});
+			$self->{authId} = $id;
+			next;
+		}
 
 		# status..
 		if($msg->{type} eq 'STATUS') {
