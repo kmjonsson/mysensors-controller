@@ -15,6 +15,22 @@ tr.state_stale {
 	opacity: 0.4;
 	background-color: #ffe0e0;
 }
+span.state_ok,
+td.state_ok {
+	color: #00bb00;
+}
+span.state_warn,
+td.state_warn {
+	color: #00bbbb;
+}
+span.state_crit,
+td.state_crit {
+	color: #bb0000;
+}
+span.state_stale,
+td.state_stale {
+	color: #aaaaff;
+}
 th.id {
 width: 50px;
 }

@@ -138,11 +138,12 @@ sub tableforl2 {
 	return $x;
 }
 sub currentornot {
-	my ($dat) = @_;
+	my ($dat,$timeout) = @_;
+	$timeout //= 600;
 	if (defined $dat) {
 		if ($dat =~ /^(\d+)(;.*)?$/) {
 			my $t = $1;
-			if (time() - $t <= 600) {
+			if (time() - $t <= $timeout) {
 				return STATE_OK;
 			} elsif (time() - $t <= 86400) {
 				return STATE_WARN;
@@ -160,8 +161,8 @@ sub currentornot {
 	#}
 }
 sub cssfromtime{
-	my ($dat) = @_;
-	my ($curr) = currentornot($dat);
+	my ($dat,$timeout) = @_;
+	my ($curr) = currentornot($dat,$timeout);
 	return $currentcss{$curr} // "";
 }
 sub timeval {
@@ -177,17 +178,14 @@ sub ls_timeval {
 	my ($dat,$time) = @_;
 	if (defined $dat && defined $time) {
 		$dat =~ s/\&/\&amp;/g;
-		my $col="#00bb00";
-		if (time() - $time > 600) {
-			$col="#bb0000";
-		}
-		return sprintf "<span style=\"color: $col\">%s - %s</span>", scalar(localtime($time)), $dat;
+		return sprintf "<span class=\"%s\">%s - %s</span>", cssfromtime($time),scalar(localtime($time)), $dat;
 	} else {
-		return "<span style=\"color: red\">-</span>";
+		return "<span class=\"state_stale\">-</span>";
 	}
 }
 sub str_timeval {
-	my ($dat) = @_;
+	my ($dat,$timeout) = @_;
+	$timeout //= 600;
 	if (defined $dat && $dat ne "") {
 		if ($dat =~ /^(\d+)(;.*)?$/) {
 			my $t = $1;
@@ -195,45 +193,45 @@ sub str_timeval {
 			$d =~ s/^;//;
 			$d =~ s/\&/\&amp;/g;
 			my $col="#00bb00";
-			if (time() - $t > 600) {
+			if (time() - $t > $timeout) {
 				$col="#bb0000";
 			}
 			if ($d ne "") {
 				$d = " - ".$d;
 			}
-			return sprintf "<span style=\"color: $col\">%s%s</span>", scalar(localtime($t)), $d;
+			return sprintf "<span class=\"%s\">%s%s</span>", cssfromtime($t,$timeout), scalar(localtime($t)), $d;
 		} else {
 			return $dat;
 		}
 	} else {
-		return "<span style=\"color: red\">-</span>";
+		return "<span class=\"state_crit\">-</span>";
 	}
 }
 updatelastseen();
 #print "<pre>";
 #print Dumper(\%data);
 #print "</pre>";
-	print "<fieldset><legend>Id</legend>";
-	print "<table class=\"main\">";
-	print "<tr>";
-	print "<th class=\"id\" >Id</th>";
-	print "<th class=\"ls\" >Lastseen</th>";
-	print "<th class=\"lsv\" >LastseenVia</th>";
+	print "<fieldset><legend>Id</legend>\n";
+	print "<table class=\"main\">\n";
+	print "<tr>\n";
+	print "<th class=\"id\" >Id</th>\n";
+	print "<th class=\"ls\" >Lastseen</th>\n";
+	print "<th class=\"lsv\" >LastseenVia</th>\n";
 	#print "<th class=\"lsraw\" >LastseenRaw</th>";
-	print "<th class=\"sketchname\" >Sketchname</th>";
-	print "<th class=\"sketchversion\" >Sketchver</th>";
-	print "<th class=\"version\" >Version</th>";
-	print "<th class=\"batterylevel\" >Battery</th>";
+	print "<th class=\"sketchname\" >Sketchname</th>\n";
+	print "<th class=\"sketchversion\" >Sketchver</th>\n";
+	print "<th class=\"version\" >Version</th>\n";
+	print "<th class=\"batterylevel\" >Battery</th>\n";
 	print "</tr>\n";
 for my $key (sort {$a <=> $b} keys %{$nodes->{nodes}}) {
 	my $ls=$values->{values}->{$key}->{lastseen};
 	$data{$key}{base}{current} = currentornot($ls);
 	my $curr = $currentcss{$data{$key}{base}{current}};
-	printf "<tr class=\"$curr\"><td>%s</td>", $key;
-	printf "<td class=\"%s\">%s</td>", cssfromtime($ls),str_timeval($ls);
+	printf "<tr class=\"$curr\"><td>%s</td>\n", $key;
+	printf "<td class=\"%s\">%s</td>\n", cssfromtime($ls),str_timeval($ls);
 	for (qw(lastseenvia)) {
 		print "<td>";
-		for my $d (keys (%{$values->{values}->{$key}->{lastseenvia}})) {
+		for my $d (sort {$a <=> $b} keys (%{$values->{values}->{$key}->{lastseenvia}})) {
 			printf "%s @ %s<br>",$d, str_timeval($values->{values}->{$key}->{lastseenvia}->{$d});
 		}
 	}
@@ -245,7 +243,7 @@ for my $key (sort {$a <=> $b} keys %{$nodes->{nodes}}) {
 	for (qw(sketchname sketchversion version)) {
 		my $d = $nodes->{nodes}->{$key}->{$_} // "-";
 		$d =~ s/\&/\&amp;/g;
-		printf "<td>%s</td>", $d;
+		printf "<td>%s</td>\n", $d;
 	}
 	my $battval = $values->{values}->{$key}->{sensors}->{&BATTERY_SENSOR}->{types}->{&BATTERY_TYPE}->{value};
 	my $batttime = $values->{values}->{$key}->{sensors}->{&BATTERY_SENSOR}->{types}->{&BATTERY_TYPE}->{lastseen};
@@ -253,7 +251,7 @@ for my $key (sort {$a <=> $b} keys %{$nodes->{nodes}}) {
 	if (defined $battval && defined $battval) {
 		$batt = "$batttime;$battval";
 	}
-	printf "<td class=\"%s\">%s%%</td>", cssfromtime($batt),str_timeval($batt);
+	printf "<td class=\"%s\">%s%%</td>\n", cssfromtime($batt,60*60),str_timeval($batt,60*60);
 	print "</tr>\n";
 }
 	print "</table>";
